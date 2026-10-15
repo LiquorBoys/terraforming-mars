@@ -17,6 +17,7 @@ import {Priority} from './deferredActions/Priority';
 import {DeferredActionsQueue} from './deferredActions/DeferredActionsQueue';
 import {SerializedGame} from './SerializedGame';
 import {SpaceBonus} from '../common/boards/SpaceBonus';
+import {GlobalParameterMaximums} from '../common/boards/GlobalParameterMaximums';
 import {TileType} from '../common/TileType';
 import {ICard} from './cards/ICard';
 import {Turmoil} from './turmoil/Turmoil';
@@ -191,6 +192,7 @@ export interface IGame extends Logger {
   getVenusScaleLevel(): number;
   increaseTemperature(player: IPlayer, increments: -2 | -1 | 1 | 2 | 3): undefined;
   getTemperature(): number;
+  readonly max: GlobalParameterMaximums;
   getGeneration(): number;
   getPassedPlayers():ReadonlyArray<Color>;
   /**

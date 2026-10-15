@@ -72,6 +72,7 @@ describe('CreateGameForm', () => {
     expect(wrapper.exists()).to.be.true;
   });
 
+
   it('restores the last saved game settings on load', async () => {
     createGameSettingsStorage.save(createNewGameConfig({
       expansions: {...DEFAULT_EXPANSIONS, venus: true},

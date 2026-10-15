@@ -20,6 +20,11 @@ export const MIN_TEMPERATURE = -30;
 export const MIN_OXYGEN_LEVEL = 0;
 export const MIN_VENUS_SCALE = 0;
 export const MAX_VENUS_SCALE = 30;
+export const MAX_OCEAN_TILES_AMAZONIS = 11;
+export const MAX_TEMPERATURE_AMAZONIS = 14;
+export const MAX_OXYGEN_LEVEL_AMAZONIS = 18;
+// Above 30%, Venus moves 1% per step.
+export const MAX_VENUS_SCALE_AMAZONIS = 33;
 
 export const OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS = 8;
 export const TEMPERATURE_FOR_OCEAN_BONUS = 0;
@@ -87,7 +92,7 @@ export const LANGUAGES: Record<LANGUAGE, [string, string]> = {
   cn: ['华语', 'Chinese'],
   pl: ['Polski', 'Polish'],
   es: ['Español', 'Spanish'],
-  br: ['Português Brasileiro', 'Brazilian Portugese'],
+  br: ['Português Brasileiro', 'Brazilian Portuguese'],
   it: ['Italiano', 'Italian'],
   ko: ['한국어', 'Korean'],
   nl: ['Nederlands', 'Dutch'],
