@@ -86,6 +86,7 @@ export const TOGGLES = [
   {value: 'twoCorpsVariant', text: 'Two corporations'},
   {value: 'removeNegativeGlobalEventsOption', text: 'No negative global events'},
   {value: 'shuffleMapOption', text: 'Shuffle map'},
+  {value: 'limitedSynergyMA', text: 'Limited-synergy awards & milestones'},
 ] as const;
 export type ToggleKey = typeof TOGGLES[number]['value'];
 
