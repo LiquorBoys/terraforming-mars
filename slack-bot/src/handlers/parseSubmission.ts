@@ -25,6 +25,7 @@ import {
   type PartialNewGameConfig,
 } from '../tm/defaults.js';
 import {
+  boardsFor,
   DEFAULT_ESCAPE_VELOCITY,
   EXPANSIONS,
   PLAYER_COLORS,
@@ -296,7 +297,7 @@ export function toNewGameConfig(
   const overrides: PartialNewGameConfig = {
     players,
     expansions: parsed.expansions,
-    board: parsed.board,
+    boards: boardsFor(parsed.board),
     seed: Math.random(),
     randomFirstPlayer: parsed.randomFirstPlayer,
     undoOption: parsed.toggles.undoOption,

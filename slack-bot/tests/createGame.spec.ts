@@ -71,7 +71,7 @@ describe('createGame', () => {
     const body = JSON.parse(init.body);
     expect(body.players).toHaveLength(2);
     expect(body.players[0]).toMatchObject({name: 'Alice', color: 'red'});
-    expect(body.board).toBe('tharsis');
+    expect(body.boards).toEqual(['tharsis']);
     expect(body.startingCeos).toBe(3);
 
     expect(game.id).toBe('g123');

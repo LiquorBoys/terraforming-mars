@@ -25,7 +25,7 @@ export function buildNewGameConfig(overrides: PartialNewGameConfig): NewGameConf
   return {
     players,
     expansions: overrides.expansions ?? {...DEFAULT_EXPANSIONS},
-    board: overrides.board ?? 'tharsis',
+    boards: overrides.boards ?? ['tharsis'],
     seed: overrides.seed ?? Math.random(),
     randomFirstPlayer: overrides.randomFirstPlayer ?? true,
 
