@@ -9,7 +9,7 @@ import {
   type RawSlot,
 } from '../src/handlers/parseSubmission.js';
 import {ActionIds, BlockIds, CLAUDE_OPTION_VALUE, TOGGLES} from '../src/views/newGameView.js';
-import {EXPANSIONS, PLAYER_COLORS} from '../src/tm/types.js';
+import {ALL_BOARDS, EXPANSIONS, OFFICIAL_BOARDS, PLAYER_COLORS} from '../src/tm/types.js';
 
 /**
  * Build a fake view.state.values payload matching the shape Slack sends for
@@ -331,7 +331,7 @@ describe('toNewGameConfig', () => {
     expect(config.players[0]).toMatchObject({name: 'Alice', color: 'red', first: false});
     expect(config.players[1]).toMatchObject({name: 'Bob', color: 'blue', first: true});
     expect(slackUserIds).toEqual(['U_ALICE', 'U_BOB']);
-    expect(config.board).toBe('hellas');
+    expect(config.boards).toEqual(['hellas']);
     expect(config.expansions.corpera).toBe(true);
     expect(config.expansions.venus).toBe(false);
     expect(config.startingPreludes).toBe(4);
@@ -343,6 +343,15 @@ describe('toNewGameConfig', () => {
     expect(config.customCorporationsList).toEqual([]);
     // default-only fields are present
     expect(typeof config.politicalAgendasExtension).toBe('string');
+  });
+
+  it('expands the random board options into the boards array the server picks from', () => {
+    const official = toNewGameConfig({...parsed, board: 'random official'}, () => 'X');
+    expect(official.config.boards).toEqual([...OFFICIAL_BOARDS]);
+    const all = toNewGameConfig({...parsed, board: 'random all'}, () => 'X');
+    expect(all.config.boards).toEqual([...ALL_BOARDS]);
+    expect(all.config.boards).not.toContain('random all');
+    expect(all.config.boards.length).toBeGreaterThan(official.config.boards.length);
   });
 
   it('honors a custom escape velocity threshold', () => {

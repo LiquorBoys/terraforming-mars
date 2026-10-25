@@ -98,8 +98,9 @@ slack-bot/
 - "Random first player?" checkbox plus an optional explicit first-player slot
   (any of the 6 slots, or Claude).
 - Board (Tharsis / Hellas / Elysium / Utopia / Vastitas Borealis Nova / Terra
-  Cimmeria Nova / Arabia Terra / Vastitas Borealis / Amazonis / T. Cimmeria /
-  Hollandia / Random official / Random all).
+  Cimmeria Nova / Amazonis Planitia / Arabia Terra / Vastitas Borealis /
+  Amazonis (fan) / T. Cimmeria / Hollandia / Random official / Random all). The
+  random options expand to a `boards` list and the server picks one.
 - Expansions (Corporate Era, Promo, Venus Next, Colonies, Prelude, Prelude 2,
   Turmoil, Community, Ares, Moon, Pathfinders, CEOs, Star Wars, Underworld,
   Delta Project).

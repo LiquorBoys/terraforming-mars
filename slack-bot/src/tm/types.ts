@@ -7,6 +7,7 @@
  *   - src/common/cards/GameModule.ts     (EXPANSIONS, DEFAULT_EXPANSIONS, Expansion)
  *   - src/common/boards/BoardName.ts     (BoardName)
  *   - src/common/boards/RandomBoardOption.ts (RandomBoardOption)
+ *   - src/common/boards/randomBoardOptions.ts (OFFICIAL_BOARDS, boardOptions)
  *   - src/common/ma/RandomMAOptionType.ts (RandomMAOptionType)
  *   - src/common/turmoil/Types.ts        (AgendaStyle)
  *   - src/common/game/NewGameConfig.ts   (NewPlayerModel, NewGameConfig, EscapeVelocityOptions)
@@ -80,15 +81,51 @@ export const BOARDS = [
   {value: 'utopia planitia', label: 'Utopia Planitia'},
   {value: 'vastitas borealis nova', label: 'Vastitas Borealis Nova'},
   {value: 'terra cimmeria nova', label: 'Terra Cimmeria Nova'},
+  {value: 'amazonis planitia', label: 'Amazonis Planitia'},
   {value: 'arabia terra', label: 'Arabia Terra'},
   {value: 'vastitas borealis', label: 'Vastitas Borealis'},
-  {value: 'amazonis p.', label: 'Amazonis Planitia'},
+  {value: 'amazonis p.', label: 'Amazonis (fan)'},
   {value: 't. cimmeria', label: 'Terra Cimmeria'},
   {value: 'Hollandia', label: 'Hollandia'},
   {value: 'random official', label: 'Random (official boards)'},
   {value: 'random all', label: 'Random (all boards)'},
 ] as const;
+/** Everything the modal's board select offers: real boards plus the two random options. */
 export type BoardNameType = typeof BOARDS[number]['value'];
+export type RandomBoardOption = 'random official' | 'random all';
+/** A concrete board the server can build - what `NewGameConfig.boards` holds. */
+export type BoardName = Exclude<BoardNameType, RandomBoardOption>;
+
+export const ALL_BOARDS: ReadonlyArray<BoardName> = BOARDS
+  .map((b) => b.value)
+  .filter((v): v is BoardName => v !== 'random official' && v !== 'random all');
+
+/** Mirrors OFFICIAL_BOARDS in src/common/boards/randomBoardOptions.ts. */
+export const OFFICIAL_BOARDS: ReadonlyArray<BoardName> = [
+  'tharsis',
+  'hellas',
+  'elysium',
+  'utopia planitia',
+  'vastitas borealis nova',
+  'terra cimmeria nova',
+  'amazonis planitia',
+];
+
+/**
+ * Expand the modal's single selection into the `boards` array the server
+ * takes since upstream c1f05256e; the server picks one at random. Mirrors
+ * the legacy `board` handling in src/client/components/create/JSONProcessor.ts.
+ */
+export function boardsFor(selection: BoardNameType): Array<BoardName> {
+  switch (selection) {
+  case 'random all':
+    return [...ALL_BOARDS];
+  case 'random official':
+    return [...OFFICIAL_BOARDS];
+  default:
+    return [selection];
+  }
+}
 
 export type AgendaStyle = 'Standard' | 'Random' | 'Chairman';
 
@@ -122,7 +159,8 @@ export const DEFAULT_ESCAPE_VELOCITY: EscapeVelocityOptions = {
 export interface NewGameConfig {
   players: Array<NewPlayerModel>;
   expansions: Record<Expansion, boolean>;
-  board: BoardNameType;
+  /** The server picks one of these at random. */
+  boards: Array<BoardName>;
   seed: number;
   randomFirstPlayer: boolean;
 
