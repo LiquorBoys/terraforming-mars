@@ -1,0 +1,32 @@
+# Lightweight CI for slack-bot/. Runs on every push to main and every PR, not
+# just when slack-bot/ changes: slack-bot/tests/apiDrift.spec.ts compares the
+# bot's hand-copied request types with src/common/game/NewGameConfig.ts, so an
+# upstream sync that renames a server field must fail here rather than as an
+# HTTP 500 on game night. Whole job is ~30s.
+name: Slack bot
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: slack-bot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: slack-bot
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: slack-bot/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
