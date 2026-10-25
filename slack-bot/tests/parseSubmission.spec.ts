@@ -354,6 +354,15 @@ describe('toNewGameConfig', () => {
     expect(all.config.boards.length).toBeGreaterThan(official.config.boards.length);
   });
 
+  it('uses full random awards and milestones unless the limited-synergy toggle is on', () => {
+    expect(toNewGameConfig(parsed, () => 'X').config.randomMA).toBe('Full random');
+    const limited = toNewGameConfig(
+      {...parsed, toggles: {...parsed.toggles, limitedSynergyMA: true}},
+      () => 'X',
+    );
+    expect(limited.config.randomMA).toBe('Limited synergy');
+  });
+
   it('honors a custom escape velocity threshold', () => {
     const out = toNewGameConfig({...parsed, escapeVelocityThresholdMinutes: 45}, () => 'X');
     expect(out.config.escapeVelocity?.thresholdMinutes).toBe(45);

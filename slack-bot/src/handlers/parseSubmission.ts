@@ -310,6 +310,9 @@ export function toNewGameConfig(
     twoCorpsVariant: parsed.toggles.twoCorpsVariant,
     removeNegativeGlobalEventsOption: parsed.toggles.removeNegativeGlobalEventsOption,
     shuffleMapOption: parsed.toggles.shuffleMapOption,
+    // Not a boolean field on the config: the checkbox picks the server's
+    // "Limited synergy" randomizer, which avoids overlapping awards/milestones.
+    randomMA: parsed.toggles.limitedSynergyMA ? 'Limited synergy' : 'Full random',
     startingPreludes: parsed.startingPreludes,
     startingCorporations: parsed.startingCorporations,
     escapeVelocity: parsed.escapeVelocityOn
