@@ -49,7 +49,8 @@ export function buildNewGameConfig(overrides: PartialNewGameConfig): NewGameConf
     // Deliberately 3 rather than the web form's 2 - see issue #5.
     startingCorporations: overrides.startingCorporations ?? 3,
     shuffleMapOption: overrides.shuffleMapOption ?? false,
-    randomMA: overrides.randomMA ?? 'Full random',
+    // Deliberately 'Limited synergy' rather than the web form's 'Full random'.
+    randomMA: overrides.randomMA ?? 'Limited synergy',
     includeFanMA: overrides.includeFanMA ?? true,
     soloTR: overrides.soloTR ?? false,
     customCorporationsList: overrides.customCorporationsList ?? [],
