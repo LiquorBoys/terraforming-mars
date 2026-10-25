@@ -14,6 +14,7 @@
  *      (env id/name, else DEFAULT_CLAUDE_OPERATOR resolved by name, else
  *      the host) instead.
  *    - On failure, DM the host the error.
+ *    - Either way, post a line to SLACK_LOG_CHANNEL if configured.
  */
 
 import type {
@@ -50,13 +51,15 @@ import {
   type PlayerDmResult,
 } from '../slack/notify.js';
 import {claudePlayerName, resolveClaudeOperator} from '../claude.js';
+import {postLog} from '../slack/log.js';
 
 export {VIEW_CALLBACK_ID} from '../views/newGameView.js';
 
 export async function onViewSubmission(
   args: SlackViewMiddlewareArgs<ViewSubmitAction> & AllMiddlewareArgs,
 ): Promise<void> {
-  const {ack, view, client, logger} = args;
+  const {ack, view, client, logger, context} = args;
+  const requestId = typeof context.requestId === 'string' ? context.requestId : undefined;
 
   const state = view.state.values as Record<string, Record<string, unknown>>;
   const parsed = parseSubmission(state);
@@ -124,10 +127,32 @@ export async function onViewSubmission(
           claude,
         );
         await dmHostSummary(client, meta.hostUserId, summary);
+        await postLog(client, {
+          kind: 'created',
+          hostUserId: meta.hostUserId,
+          gameName: game.name,
+          hostDashboardUrl: summary.hostDashboardUrl,
+          players: summary.players.map((p) => ({
+            name: p.name,
+            slackUserId: p.isClaude === true ? undefined : p.slackUserId,
+            dmFailed: p.dmFailed,
+          })),
+        }, {requestId});
       } catch (err) {
         const message = formatBackgroundError(err);
         logger.error('[slack-bot] background work failed', err);
         await dmHostError(client, meta.hostUserId, message);
+        await postLog(client, {
+          kind: 'failed',
+          hostUserId: meta.hostUserId,
+          message,
+          ...(err instanceof TmApiError ? {status: err.status, responseBody: err.responseBody} : {}),
+          attempt: {
+            playerCount: parsed.slots.length,
+            board: parsed.board,
+            expansions: Object.entries(parsed.expansions).filter(([, on]) => on).map(([k]) => k),
+          },
+        }, {requestId});
       }
     })(),
   );
