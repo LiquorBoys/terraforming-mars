@@ -97,6 +97,8 @@ export class VercelReceiver implements Receiver {
       let settled = false;
       const event: ReceiverEvent = {
         body,
+        // Surfaces as context.requestId in handlers, for the shared log.
+        customProperties: {requestId: headerString(req, 'x-vercel-id')},
         ack: async (response) => {
           if (settled) return;
           settled = true;

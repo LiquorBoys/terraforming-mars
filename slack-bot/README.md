@@ -42,6 +42,7 @@ Slack and Vercel each need information the other produces:
 | `SLACK_BOT_TOKEN` | yes | `xoxb-...` from the Slack app's OAuth & Permissions page. |
 | `SLACK_SIGNING_SECRET` | yes | From the Slack app's Basic Information page. Bolt verifies every incoming request with this. |
 | `TM_BASE_URL` | no | Defaults to `https://terraforming-mars.herokuapp.com`. Set to your own TM origin if self-hosting. |
+| `SLACK_LOG_CHANNEL` | no | Channel id or name for the shared operational log (every game created, every failure with the TM server's error body and Vercel request id). Invite the bot to the channel first: `/invite @terraforming-mars`. Unset disables it. |
 | `CLAUDE_OPERATOR_SLACK_USER_ID` / `CLAUDE_OPERATOR` | no | Who runs Claude Code and receives Claude's link: a Slack user id (`U...`) or a name (matched against real/display name via `users.list`). Defaults to the hardcoded `DEFAULT_CLAUDE_OPERATOR` in `src/claude.ts` (currently "Simas Glinskis"), then to the host who ran `/tm-newgame` if no one matches. |
 | `CLAUDE_PLAYER_NAME` | no | Player name Claude is seated under. Defaults to `Claude`. |
 
@@ -168,6 +169,17 @@ custom colonies (these fields are sent as empty arrays), and starting CEOs
 per player (the CEOs expansion is off by default; the server default of 3
 still applies if you turn it on). The web `New Game` form remains the place
 to use those.
+
+## Shared operational log
+
+Vercel's Hobby plan is single-member and keeps runtime logs for about an
+hour, so the durable record of what the bot did is one it writes itself. Set
+`SLACK_LOG_CHANNEL` to a channel the bot has been invited to and it posts one
+line per game created (host, seats, any failed DMs, dashboard link) and one
+per failure (what the host asked for, the TM server's HTTP status and error
+body, the `x-vercel-id` request id for the hour the Vercel log still exists,
+and the deploy's git SHA). Posting is best-effort: a misconfigured channel is
+logged to Vercel and otherwise ignored.
 
 ## Costs
 
