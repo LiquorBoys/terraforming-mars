@@ -343,8 +343,9 @@ describe('toNewGameConfig', () => {
     expect(config.customCorporationsList).toEqual([]);
     // default-only fields are present
     expect(typeof config.politicalAgendasExtension).toBe('string');
-    // Milestones/awards randomization is not in the modal; the bot's default differs from the web form's.
-    expect(config.randomMA).toBe('Limited synergy');
+    // The fixture has every toggle off, so the randomMA checkbox is unchecked
+    // here; the modal checks it by default (see newGameView.spec).
+    expect(config.randomMA).toBe('Full random');
   });
 
   it('expands the random board options into the boards array the server picks from', () => {

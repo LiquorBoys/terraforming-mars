@@ -90,6 +90,14 @@ describe('buildNewGameView', () => {
     expect(el.options.map((o) => o.value)).toEqual(TOGGLES.map((t) => t.value));
   });
 
+  it('checks limited-synergy milestones & awards by default', () => {
+    const view = buildNewGameView(meta);
+    const el = (findBlock(view, BlockIds.toggles) as {
+      element: {initial_options?: Array<{value: string}>};
+    }).element;
+    expect(el.initial_options?.map((o) => o.value)).toContain('limitedSynergyMA');
+  });
+
   it('offers a starting-corporations input defaulting to 3', () => {
     const view = buildNewGameView(meta);
     const block = findBlock(view, BlockIds.startingCorporations);
