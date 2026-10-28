@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {describe, expect, it} from 'vitest';
+import {OFFICIAL_BOARDS} from '../src/tm/types.js';
 
 /**
  * src/tm/types.ts is a hand-maintained copy of the TM server's request
@@ -31,11 +32,30 @@ function topLevelFields(source: string, typeName: string): Array<string> {
   return fields.sort();
 }
 
+const here = fileURLToPath(new URL('.', import.meta.url));
+const serverFile = (rel: string) => readFileSync(`${here}/../../${rel}`, 'utf8');
+
 describe('NewGameConfig stays in sync with the TM server source', () => {
   it('has the same top-level fields as src/common/game/NewGameConfig.ts', () => {
-    const here = fileURLToPath(new URL('.', import.meta.url));
-    const serverSrc = readFileSync(`${here}/../../src/common/game/NewGameConfig.ts`, 'utf8');
+    const serverSrc = serverFile('src/common/game/NewGameConfig.ts');
     const botSrc = readFileSync(`${here}/../src/tm/types.ts`, 'utf8');
     expect(topLevelFields(botSrc, 'NewGameConfig')).toEqual(topLevelFields(serverSrc, 'NewGameConfig'));
+  });
+
+  it('mirrors OFFICIAL_BOARDS from src/common/boards/randomBoardOptions.ts', () => {
+    // BoardName.THARSIS = 'tharsis', ... -> {THARSIS: 'tharsis', ...}
+    const enumValues = new Map<string, string>();
+    for (const m of serverFile('src/common/boards/BoardName.ts').matchAll(/^\s*([A-Z_]+)\s*=\s*'([^']+)'/gm)) {
+      enumValues.set(m[1]!, m[2]!);
+    }
+    const src = serverFile('src/common/boards/randomBoardOptions.ts');
+    const listSrc = /const OFFICIAL_BOARDS = \[([\s\S]*?)\];/.exec(src)?.[1];
+    if (listSrc === undefined) throw new Error('OFFICIAL_BOARDS not found in randomBoardOptions.ts');
+    const serverOfficial = [...listSrc.matchAll(/BoardName\.([A-Z_]+)/g)].map((m) => {
+      const v = enumValues.get(m[1]!);
+      if (v === undefined) throw new Error(`BoardName.${m[1]} not in BoardName.ts`);
+      return v;
+    });
+    expect([...OFFICIAL_BOARDS]).toEqual(serverOfficial);
   });
 });

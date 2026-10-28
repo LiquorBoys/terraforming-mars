@@ -106,7 +106,8 @@ slack-bot/
   Turmoil, Community, Ares, Moon, Pathfinders, CEOs, Star Wars, Underworld,
   Delta Project).
 - Common toggles (undo, timers, fast mode, draft, initial draft, show others'
-  VP, solar phase, two corporations, no negative global events, shuffle map).
+  VP, solar phase, two corporations, no negative global events, shuffle map,
+  limited-synergy milestones & awards - on by default).
 - Corporations dealt per player (1-6, defaulting to 3) and starting preludes
   per player.
 - Escape Velocity (off / on, with a configurable threshold time in minutes,

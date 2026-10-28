@@ -90,7 +90,7 @@ export const TOGGLES = [
 ] as const;
 export type ToggleKey = typeof TOGGLES[number]['value'];
 
-const DEFAULT_TOGGLES: ReadonlyArray<ToggleKey> = ['undoOption', 'draftVariant', 'showTimers', 'showOtherPlayersVP'];
+const DEFAULT_TOGGLES: ReadonlyArray<ToggleKey> = ['undoOption', 'draftVariant', 'showTimers', 'showOtherPlayersVP', 'limitedSynergyMA'];
 const DEFAULT_EXPANSION_KEYS: ReadonlyArray<string> = ['corpera', 'promo', 'venus', 'colonies', 'prelude', 'prelude2'];
 
 export interface PrivateMetadata {

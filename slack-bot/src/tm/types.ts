@@ -108,7 +108,6 @@ export const OFFICIAL_BOARDS: ReadonlyArray<BoardName> = [
   'utopia planitia',
   'vastitas borealis nova',
   'terra cimmeria nova',
-  'amazonis planitia',
 ];
 
 /**
