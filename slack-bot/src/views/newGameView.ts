@@ -49,6 +49,7 @@ export const BlockIds = {
   board: 'board',
   expansions: 'expansions',
   toggles: 'toggles',
+  limitedSynergyMA: 'limited_synergy_ma',
   startingPreludes: 'starting_preludes',
   startingCorporations: 'starting_corporations',
   escapeVelocity: 'escape_velocity',
@@ -66,6 +67,7 @@ export const ActionIds = {
   board: 'board_action',
   expansions: 'expansions_action',
   toggles: 'toggles_action',
+  limitedSynergyMA: 'limited_synergy_ma_action',
   startingPreludes: 'starting_preludes_action',
   startingCorporations: 'starting_corporations_action',
   escapeVelocity: 'escape_velocity_action',
@@ -74,8 +76,11 @@ export const ActionIds = {
   firstPlayerSlot: 'first_player_slot_action',
 } as const;
 
-/** Values for the toggles checkboxes block. Keys map 1:1 to NewGameConfig fields. */
-export const TOGGLES = [
+/** Slack rejects a checkboxes element with more than this many options (views.open fails with invalid_arguments). */
+export const MAX_CHECKBOX_OPTIONS = 10;
+
+/** Values for the main options checkboxes block. Keys map 1:1 to NewGameConfig fields. */
+export const GROUPED_TOGGLES = [
   {value: 'undoOption', text: 'Allow undo'},
   {value: 'showTimers', text: 'Show timers'},
   {value: 'fastModeOption', text: 'Fast mode'},
@@ -86,8 +91,16 @@ export const TOGGLES = [
   {value: 'twoCorpsVariant', text: 'Two corporations'},
   {value: 'removeNegativeGlobalEventsOption', text: 'No negative global events'},
   {value: 'shuffleMapOption', text: 'Shuffle map'},
-  {value: 'limitedSynergyMA', text: 'Limited-synergy awards & milestones'},
 ] as const;
+
+/** Rendered as its own single checkbox: the options group above is already at MAX_CHECKBOX_OPTIONS. */
+export const LIMITED_SYNERGY_TOGGLE = {
+  value: 'limitedSynergyMA',
+  text: 'Limited-synergy awards & milestones',
+} as const;
+
+/** Every toggle the form can set, in either block. parseSubmission merges the two blocks into one record. */
+export const TOGGLES = [...GROUPED_TOGGLES, LIMITED_SYNERGY_TOGGLE] as const;
 export type ToggleKey = typeof TOGGLES[number]['value'];
 
 const DEFAULT_TOGGLES: ReadonlyArray<ToggleKey> = ['undoOption', 'draftVariant', 'showTimers', 'showOtherPlayersVP', 'limitedSynergyMA'];
@@ -133,6 +146,7 @@ export function buildNewGameView(privateMetadata: PrivateMetadata, prefill?: Pre
   blocks.push(boardBlock(prefill));
   blocks.push(expansionsBlock(prefill));
   blocks.push(togglesBlock(prefill));
+  blocks.push(limitedSynergyBlock(prefill));
   blocks.push(randomFirstPlayerBlock(prefill));
   blocks.push(firstPlayerSlotBlock(prefill));
   blocks.push(startingCorporationsBlock(prefill));
@@ -295,7 +309,7 @@ function expansionsBlock(prefill?: Prefill): KnownBlock {
 }
 
 function togglesBlock(prefill?: Prefill): KnownBlock {
-  const options = TOGGLES.map((t) => ({
+  const options = GROUPED_TOGGLES.map((t) => ({
     text: {type: 'plain_text' as const, text: t.text},
     value: t.value,
   }));
@@ -311,6 +325,27 @@ function togglesBlock(prefill?: Prefill): KnownBlock {
       action_id: ActionIds.toggles,
       ...(initial.length > 0 ? {initial_options: initial} : {}),
       options,
+    },
+  };
+}
+
+function limitedSynergyBlock(prefill?: Prefill): KnownBlock {
+  const option = {
+    text: {type: 'plain_text' as const, text: LIMITED_SYNERGY_TOGGLE.text},
+    value: LIMITED_SYNERGY_TOGGLE.value,
+  };
+  const selected: ReadonlyArray<string> = prefill?.toggles ?? DEFAULT_TOGGLES;
+  const checked = selected.includes(option.value);
+  return {
+    type: 'input',
+    block_id: BlockIds.limitedSynergyMA,
+    optional: true,
+    label: {type: 'plain_text', text: 'Milestones & awards'},
+    element: {
+      type: 'checkboxes',
+      action_id: ActionIds.limitedSynergyMA,
+      ...(checked ? {initial_options: [option]} : {}),
+      options: [option],
     },
   };
 }
