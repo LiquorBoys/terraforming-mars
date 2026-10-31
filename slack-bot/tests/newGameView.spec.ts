@@ -7,11 +7,24 @@ import {
   defaultClaudeColor,
   encodePrivateMetadata,
   MAX_PLAYER_SLOTS,
+  GROUPED_TOGGLES,
+  LIMITED_SYNERGY_TOGGLE,
+  MAX_CHECKBOX_OPTIONS,
   TOGGLES,
   VIEW_CALLBACK_ID,
 } from '../src/views/newGameView.js';
 import {BOARDS, EXPANSIONS, PLAYER_COLORS} from '../src/tm/types.js';
 import type {Prefill} from '../src/views/prefill.js';
+
+function expectCheckboxesWithinCap(view: ReturnType<typeof buildNewGameView>): void {
+  const checkboxes = view.blocks
+    .map((b) => (b as {element?: {type?: string; options?: Array<unknown>}}).element)
+    .filter((e) => e?.type === 'checkboxes');
+  expect(checkboxes.length).toBeGreaterThan(0);
+  for (const el of checkboxes) {
+    expect(el!.options!.length).toBeLessThanOrEqual(MAX_CHECKBOX_OPTIONS);
+  }
+}
 
 describe('buildNewGameView', () => {
   const meta = {hostUserId: 'U123', channelId: 'C456'};
@@ -83,19 +96,29 @@ describe('buildNewGameView', () => {
     );
   });
 
-  it('lists every TOGGLE in the options checkboxes block', () => {
+  it('lists the grouped TOGGLES in the options checkboxes block, minus the one with its own block', () => {
     const view = buildNewGameView(meta);
     const block = findBlock(view, BlockIds.toggles);
     const el = (block as {element: {options: Array<{value: string}>}}).element;
-    expect(el.options.map((o) => o.value)).toEqual(TOGGLES.map((t) => t.value));
+    expect(el.options.map((o) => o.value)).toEqual(GROUPED_TOGGLES.map((t) => t.value));
+    expect(el.options.map((o) => o.value)).not.toContain(LIMITED_SYNERGY_TOGGLE.value);
+    expect([...GROUPED_TOGGLES, LIMITED_SYNERGY_TOGGLE]).toEqual([...TOGGLES]);
   });
 
-  it('checks limited-synergy milestones & awards by default', () => {
+  it('checks limited-synergy milestones & awards by default, in its own block', () => {
     const view = buildNewGameView(meta);
-    const el = (findBlock(view, BlockIds.toggles) as {
-      element: {initial_options?: Array<{value: string}>};
+    const el = (findBlock(view, BlockIds.limitedSynergyMA) as {
+      element: {options: Array<{value: string}>; initial_options?: Array<{value: string}>};
     }).element;
-    expect(el.initial_options?.map((o) => o.value)).toContain('limitedSynergyMA');
+    expect(el.options.map((o) => o.value)).toEqual(['limitedSynergyMA']);
+    expect(el.initial_options?.map((o) => o.value)).toEqual(['limitedSynergyMA']);
+  });
+
+  // Slack rejects the whole modal (views.open -> invalid_arguments) if any
+  // checkboxes element has more than 10 options, and the slash command then
+  // appears to do nothing.
+  it("keeps every checkboxes element within Slack's option cap", () => {
+    expectCheckboxesWithinCap(buildNewGameView(meta));
   });
 
   it('offers a starting-corporations input defaulting to 3', () => {
@@ -174,6 +197,18 @@ describe('buildNewGameView with a prefill', () => {
     escapeVelocityOn: false,
     escapeVelocityThresholdMinutes: 45,
   };
+
+  it('leaves limited-synergy unchecked when the prefill has it off', () => {
+    const view = buildNewGameView(meta, {...prefill, toggles: ['fastModeOption']});
+    const el = (findBlock(view, BlockIds.limitedSynergyMA) as {
+      element: {initial_options?: Array<unknown>};
+    }).element;
+    expect(el.initial_options).toBeUndefined();
+  });
+
+  it("keeps every checkboxes element within Slack's option cap", () => {
+    expectCheckboxesWithinCap(buildNewGameView(meta, prefill));
+  });
 
   it('preselects the previous players in their original slots', () => {
     const view = buildNewGameView(meta, prefill);

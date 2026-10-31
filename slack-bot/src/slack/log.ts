@@ -44,6 +44,13 @@ export type LogEntry =
     /** From the TM server, when the failure was an HTTP response. */
     status?: number;
     responseBody?: string;
+  }
+  | {
+    kind: 'modal_failed';
+    hostUserId: string;
+    channelId: string;
+    /** Slack's error string, e.g. `expired_trigger_id`. */
+    errorCode: string;
   };
 
 /** Deploy-side context attached to every entry. */
@@ -87,6 +94,9 @@ export function formatLogEntry(entry: LogEntry, ctx: LogContext = {}): string {
       .join(', ');
     lines.push(`:white_check_mark: *${escapeMrkdwn(entry.gameName)}* created by <@${entry.hostUserId}> — ${entry.players.length} seats: ${seats}`);
     lines.push(`<${entry.hostDashboardUrl}|host dashboard>`);
+  } else if (entry.kind === 'modal_failed') {
+    lines.push(`:x: /tm-newgame form failed to open for <@${entry.hostUserId}> in <#${entry.channelId}>`);
+    lines.push(`*Slack error:* \`${escapeMrkdwn(entry.errorCode)}\``);
   } else {
     const {attempt} = entry;
     lines.push(`:x: Game creation failed for <@${entry.hostUserId}>`);

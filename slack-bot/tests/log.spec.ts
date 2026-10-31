@@ -39,6 +39,13 @@ const failed: LogEntry = {
   attempt: {playerCount: 3, board: 'random all', expansions: ['corpera', 'venus']},
 };
 
+const modalFailed: LogEntry = {
+  kind: 'modal_failed',
+  hostUserId: 'U_HOST',
+  channelId: 'C_CHAN',
+  errorCode: 'expired_trigger_id',
+};
+
 afterEach(() => {
   delete process.env.SLACK_LOG_CHANNEL;
   delete process.env.VERCEL_GIT_COMMIT_SHA;
@@ -115,5 +122,15 @@ describe('formatLogEntry', () => {
     expect(formatLogEntry(created)).not.toMatch(/deploy|request/);
     process.env.VERCEL_GIT_COMMIT_SHA = 'a53ba4a65deadbeef';
     expect(formatLogEntry(created)).toContain('deploy `a53ba4a`');
+  });
+});
+
+describe('formatLogEntry modal_failed', () => {
+  it('names the host, channel and Slack error', () => {
+    const text = formatLogEntry(modalFailed, {requestId: 'iad1::abc'});
+    expect(text).toContain('<@U_HOST>');
+    expect(text).toContain('<#C_CHAN>');
+    expect(text).toContain('`expired_trigger_id`');
+    expect(text).toContain('request `iad1::abc`');
   });
 });

@@ -79,14 +79,17 @@ function makeState(opts: {
       })),
     },
   };
+  const checkboxState = (values: Array<string>) => ({
+    type: 'checkboxes' as const,
+    selected_options: values.map((v) => ({value: v, text: {type: 'plain_text' as const, text: v}})),
+  });
+  const selectedToggles = opts.selectedToggles ?? [];
+  // limitedSynergyMA lives in its own block in the real modal.
   state[BlockIds.toggles] = {
-    [ActionIds.toggles]: {
-      type: 'checkboxes',
-      selected_options: (opts.selectedToggles ?? []).map((v) => ({
-        value: v,
-        text: {type: 'plain_text', text: v},
-      })),
-    },
+    [ActionIds.toggles]: checkboxState(selectedToggles.filter((v) => v !== 'limitedSynergyMA')),
+  };
+  state[BlockIds.limitedSynergyMA] = {
+    [ActionIds.limitedSynergyMA]: checkboxState(selectedToggles.filter((v) => v === 'limitedSynergyMA')),
   };
   state[BlockIds.randomFirstPlayer] = {
     [ActionIds.randomFirstPlayer]: {
@@ -244,6 +247,20 @@ describe('parseSubmission', () => {
     for (const t of TOGGLES) {
       expect(parsed.toggles[t.value]).toBeTypeOf('boolean');
     }
+  });
+
+  it('reads limited-synergy from its own checkbox block into the toggle record', () => {
+    const on = parseSubmission(makeState({
+      slots: [{i: 1, user: 'U_ALICE', color: 'red'}],
+      selectedToggles: ['limitedSynergyMA'],
+    })) as ParsedSubmission;
+    expect(on.toggles.limitedSynergyMA).toBe(true);
+    const off = parseSubmission(makeState({
+      slots: [{i: 1, user: 'U_ALICE', color: 'red'}],
+      selectedToggles: ['undoOption'],
+    })) as ParsedSubmission;
+    expect(off.toggles.limitedSynergyMA).toBe(false);
+    expect(off.toggles.undoOption).toBe(true);
   });
 
   it('parses the escape velocity time input', () => {

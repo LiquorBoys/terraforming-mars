@@ -158,7 +158,10 @@ export function parseSubmission(state: ViewState): ParsedSubmission | Validation
     EXPANSIONS.map((e) => [e, selectedExpansionValues.includes(e)]),
   ) as Record<Expansion, boolean>;
 
-  const selectedToggleValues = readCheckboxValues(state, BlockIds.toggles, ActionIds.toggles);
+  const selectedToggleValues = [
+    ...readCheckboxValues(state, BlockIds.toggles, ActionIds.toggles),
+    ...readCheckboxValues(state, BlockIds.limitedSynergyMA, ActionIds.limitedSynergyMA),
+  ];
   const toggles = Object.fromEntries(
     TOGGLES.map((t) => [t.value, selectedToggleValues.includes(t.value)]),
   ) as Record<ToggleKey, boolean>;
