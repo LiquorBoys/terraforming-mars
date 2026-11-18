@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {awardManifest} from '../../src/server/awards/Awards';
 import {milestoneManifest} from '../../src/server/milestones/Milestones';
-import {BOARDS_WITHOUT_VOLCANIC_SPACES, chooseMilestonesAndAwards, getCandidates, LIMITED_SYNERGY, maximumSynergy, verifySynergyRules} from '../../src/server/ma/MilestoneAwardSelector';
+import {BOARDS_WITHOUT_VOLCANIC_SPACES, chooseMilestonesAndAwards, getCandidates, LIMITED_SYNERGY, maximumSynergy, validateCustomMAExpansions, verifySynergyRules} from '../../src/server/ma/MilestoneAwardSelector';
 import {RandomMAOptionType} from '../../src/common/ma/RandomMAOptionType';
 import {intersection} from '../../src/common/utils/utils';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../src/server/game/GameOptions';
@@ -147,6 +147,31 @@ describe('MilestoneAwardSelector', () => {
     });
     expect(mas.milestones).to.have.length(8);
     expect(mas.awards).to.have.length(8);
+  });
+
+  it('manual milestones and awards come from customMA', () => {
+    const customMA = {
+      milestones: ['Terraformer', 'Gardener', 'Builder', 'Mayor', 'Planner'],
+      awards: ['Banker', 'Scientist', 'Thermalist', 'Miner', 'Celebrity'],
+    } as const;
+    const mas = choose({boardName: BoardName.HELLAS, randomMA: RandomMAOptionType.MANUAL, customMA});
+    expect(mas.milestones).deep.eq(customMA.milestones);
+    expect(mas.awards).deep.eq(customMA.awards);
+  });
+
+  it('manual milestones and awards require customMA', () => {
+    expect(() => choose({randomMA: RandomMAOptionType.MANUAL})).to.throw('require customMA');
+  });
+
+  it('validateCustomMAExpansions', () => {
+    const customMA = {
+      milestones: ['Terraformer', 'Gardener', 'Builder', 'Mayor', 'Planner'],
+      awards: ['Banker', 'Scientist', 'Thermalist', 'Miner', 'Politician'],
+    } as const;
+    const expansions = {...DEFAULT_GAME_OPTIONS.expansions, turmoil: false};
+    expect(() => validateCustomMAExpansions(customMA, expansions)).to.throw('Politician needs the Turmoil expansion');
+    expect(() => validateCustomMAExpansions(customMA, {...expansions, turmoil: true})).to.not.throw();
+    expect(() => validateCustomMAExpansions(undefined, expansions)).to.not.throw();
   });
 
   it('Do not select Constructor when Colonies is not selected', () => {

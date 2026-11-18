@@ -20,24 +20,26 @@ import {RouteError} from './RouteError';
 import {CEO_CARDS_DEALT_PER_PLAYER} from '../../common/constants';
 import {hasNegativeEscapeVelocityOption, sanitizeEscapeVelocityOptions} from '../../common/game/escapeVelocity';
 
-function parseQuotaConfig(struct: any): QuotaConfig {
-  let {limit} = struct;
-  const {per} = struct;
+function parseQuotaConfig(struct: unknown): QuotaConfig {
+  if (typeof struct !== 'object' || struct === null) {
+    throw new Error('quota config is not an object');
+  }
+  const {limit, per} = struct as {limit?: unknown, per?: unknown};
   if (limit === undefined) {
     throw new Error('limit is absent');
   }
-  limit = Number.parseInt(limit);
-  if (isNaN(limit)) {
+  const parsedLimit = Number.parseInt(String(limit));
+  if (isNaN(parsedLimit)) {
     throw new Error('limit is invalid');
   }
-  if (per === undefined) {
-    throw new Error('per is absent');
+  if (typeof per !== 'string') {
+    throw new Error('per is invalid');
   }
   const perMs = durationToMilliseconds(per);
   if (isNaN(perMs)) {
     throw new Error('per is invalid');
   }
-  return {limit, perMs};
+  return {limit: parsedLimit, perMs};
 }
 
 // GAME_QUOTA accepts either a single {limit, per} object, or a JSON array of
@@ -96,7 +98,7 @@ export class ApiCreateGame extends Handler {
   // TODO(kberg): much of this code can be moved outside of handler, and that
   // would be better.
   public override async post(req: Request, res: Response, ctx: Context): Promise<void> {
-    const withinQuota = this.quotaHandlers.map((handler) => handler.measure(ctx)).every((ok) => ok);
+    const withinQuota = this.quotaHandlers.every((handler) => handler.isWithinQuota(ctx));
     if (!withinQuota) {
       responses.quotaExceeded(req, res);
       return;
@@ -138,6 +140,7 @@ export class ApiCreateGame extends Handler {
         aresExtension: gameReq.expansions.ares,
         aresHazards: true, // Not a runtime option.
         aresExtremeVariant: gameReq.aresExtremeVariant,
+        automa: false, // No create-game UI yet.
         bannedCards: gameReq.bannedCards,
         boardName: boardName,
         ceoExtension: gameReq.expansions.ceo,
@@ -150,6 +153,7 @@ export class ApiCreateGame extends Handler {
         customCeos: gameReq.customCeos,
         customColoniesList: gameReq.customColoniesList,
         customCorporationsList: gameReq.customCorporationsList,
+        customMA: gameReq.customMA,
         customPreludes: gameReq.customPreludes,
         draftVariant: gameReq.draftVariant,
         escapeVelocity: gameReq.escapeVelocity === undefined ? undefined : sanitizeEscapeVelocityOptions(gameReq.escapeVelocity),
@@ -171,7 +175,7 @@ export class ApiCreateGame extends Handler {
         removeNegativeGlobalEventsOption: gameReq.removeNegativeGlobalEventsOption,
         requiresMoonTrackCompletion: gameReq.requiresMoonTrackCompletion,
         requiresVenusTrackCompletion: gameReq.requiresVenusTrackCompletion,
-        showOtherPlayersVP: gameReq.showOtherPlayersVP,
+        showVP: gameReq.showVP,
         showTimers: gameReq.showTimers,
         shuffleMapOption: gameReq.shuffleMapOption,
         solarPhaseOption: gameReq.solarPhaseOption,
@@ -197,6 +201,8 @@ export class ApiCreateGame extends Handler {
         game = Game.newInstance(gameId, players, players[firstPlayerIdx], spectatorId, gameOptions, seed);
       }
       ctx.gameLoader.add(game);
+      // Only games that are actually created count against the quota.
+      this.quotaHandlers.forEach((handler) => handler.record(ctx));
       responses.writeJson(res, ctx, Server.getSimpleGameModel(game));
     } catch (error) {
       if (error instanceof RouteError) {

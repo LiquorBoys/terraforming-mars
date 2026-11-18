@@ -1,24 +1,24 @@
 <template>
   <div>
-  <template v-if="waitingfor === undefined || waitingfor.optional">
-    <template v-if="waitingfor === undefined">
-      {{ $t('Not your turn to take any actions') }}
+    <template v-if="waitingfor === undefined || waitingfor.optional">
+      <template v-if="waitingfor === undefined">
+        {{ $t('Not your turn to take any actions') }}
+      </template>
+      <template v-else>
+        {{ $t('Waiting for other players') }}
+      </template>
+      <template v-if="playersWaitingFor.length > 0">
+        (⌛ <span v-for="color in playersWaitingFor" class="log-player" :class="playerColorClass(color, 'bg')" :key="color">{{ getPlayerName(color) }}</span>)
+      </template>
     </template>
-    <template v-else>
-      {{ $t('Waiting for other players') }}
-    </template>
-    <template v-if="playersWaitingFor.length > 0">
-      (⌛ <span v-for="color in playersWaitingFor" class="log-player" :class="playerColorClass(color, 'bg')" :key="color">{{ getPlayerName(color) }}</span>)
-    </template>
-  </template>
-  <div v-if="waitingfor !== undefined" class="wf-root">
-    <PlayerInputFactory :players="playerView.players"
-                          :playerView="playerView"
-                          :playerinput="waitingfor"
-                          :onsave="onsave"
-                          :showsave="true"
-                          :showtitle="true"
-                          :key="inputKey" />
+    <div v-if="waitingfor !== undefined" class="wf-root">
+      <PlayerInputFactory :players="playerView.players"
+        :playerView="playerView"
+        :playerinput="waitingfor"
+        :onsave="onsave"
+        :showsave="true"
+        :showtitle="true"
+        :key="inputKey" />
     </div>
   </div>
 </template>
@@ -41,7 +41,7 @@ import {paths} from '@/common/app/paths';
 import {statusCode} from '@/common/http/statusCode';
 import {isPlayerId} from '@/common/Types';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {INVALID_REQUEST_ID, INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
+import {INVALID_REQUEST_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {Color} from '@/common/Color';
 import {gameDocumentTitle} from '../utils/documentTitle';
 import {setFaviconStatus, setFaviconTurnFrame} from '@/client/utils/favicon';
@@ -155,7 +155,7 @@ export default defineComponent({
         {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({runId: this.playerView.runId, requestId: this.requestId, ...out}),
+          body: JSON.stringify({requestId: this.requestId, ...out}),
         });
     },
     reset() {
@@ -182,7 +182,7 @@ export default defineComponent({
           if (response.status === statusCode.badRequest) {
             const resp = await response.json() as AppErrorResponse;
             let cb = () => {};
-            if (resp.id === INVALID_RUN_ID || resp.id === INVALID_REQUEST_ID) {
+            if (resp.id === INVALID_REQUEST_ID) {
               cb = () => setTimeout(() => window.location.reload(), 100);
             }
             showAlert('Error with input', resp.message, cb);
@@ -204,7 +204,7 @@ export default defineComponent({
       root.playerView = playerView;
       root.screen = 'player-home';
       if (this.playerView.game.phase === 'end' && window.location.pathname !== paths.THE_END) {
-        window.location = window.location as any as (string & Location);
+        window.location.reload();
       }
     },
     waitForUpdate() {

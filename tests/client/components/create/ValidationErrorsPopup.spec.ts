@@ -22,6 +22,9 @@ const NO_ERRORS: ValidationErrors = {
   prelude2WithoutPrelude: false,
   deltaProjectWithoutPrelude: false,
   notEnoughCorporations: 0,
+  invalidCustomMA: '',
+  milestonesMissingExpansions: false,
+  awardsMissingExpansions: false,
 };
 
 describe('ValidationErrorsPopup', () => {
