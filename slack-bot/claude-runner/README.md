@@ -40,7 +40,7 @@ The skill's `tm.js` evaluates JavaScript that the model writes (the guards in
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `TM_MODEL` | `opus` | Model for the seat. |
+| `TM_MODEL` | `opus` | Model for the seat. A comma-separated list (`opus,sonnet`) gives each game the model that has played the fewest games so far, breaking ties at random, so the models end up with equal numbers of games; the choice is recorded in the game's `job.json`. |
 | `TM_BUDGET_USD` | `300` | Per-game spend cap passed to `claude --max-budget-usd`. |
 | `TM_MAX_CONCURRENT` | `2` | Games at once; further requests are declined and the bot falls back to DMing the operator. |
 | `TM_MAX_PER_DAY` | `8` | Seats accepted per 24 hours. |

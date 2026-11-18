@@ -13,7 +13,6 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="${TM_RUNNER_HOME:-$HOME/tm-claude}"
 REPO="${TM_SKILL_REPO:-$ROOT/repo}"
 SKILL_SRC="${TM_SKILL_DIR:-$REPO/slack-bot/claude-skill/terraforming-mars}"
-MODEL="${TM_MODEL:-opus}"
 BUDGET="${TM_BUDGET_USD:-300}"
 IDLE_HOURS="${TM_IDLE_HOURS:-12}"
 BASE_BRANCH="${TM_BASE_BRANCH:-main}"
@@ -25,6 +24,8 @@ say() { echo "$(date '+%Y-%m-%dT%H:%M:%S') $*" >> "$LOG"; }
 cd "$GAME" || { echo "cannot enter $GAME"; exit 1; }
 URL=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("job.json","utf8")).playerUrl)') || { say "STOP: job.json unreadable"; exit 1; }
 PLAYER="${URL##*id=}"; BASE="${URL%%/player*}"
+# The model was drawn when the seat was accepted and is fixed for the game.
+MODEL=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("job.json","utf8")).model || "opus")')
 REFS="$SKILL_SRC/references"
 mkdir -p logs cache lessons lessons-seed
 

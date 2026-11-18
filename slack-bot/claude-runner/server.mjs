@@ -15,6 +15,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {verify} from './sign.mjs';
@@ -27,6 +28,10 @@ const PORT = Number(env.TM_RUNNER_PORT || 8787);
 const ORIGIN = (env.TM_ALLOWED_ORIGIN || 'https://terraforming-mars.herokuapp.com').replace(/\/+$/, '');
 const MAX_CONCURRENT = Number(env.TM_MAX_CONCURRENT || 2);
 const MAX_PER_DAY = Number(env.TM_MAX_PER_DAY || 8);
+// One model, or a comma-separated list. With a list, each game gets whichever model has played the
+// fewest games so far, with ties broken at random: a coin flip per game leaves the arms of a
+// small comparison lopsided (15 against 9 in one test of 24 draws).
+const MODELS = (env.TM_MODEL || 'opus').split(',').map((m) => m.trim()).filter(Boolean);
 const SECRET_FILE = env.TM_RUNNER_SECRET_FILE || path.join(HOME, 'runner-secret');
 const MAX_BODY = 16 * 1024;
 
@@ -85,6 +90,13 @@ function parseSeat(playerUrl) {
   return {playerId};
 }
 
+function pickModel(all) {
+  const played = (m) => all.filter((j) => j.job.model === m).length;
+  const fewest = Math.min(...MODELS.map(played));
+  const candidates = MODELS.filter((m) => played(m) === fewest);
+  return candidates[crypto.randomInt(candidates.length)];
+}
+
 function accept(body) {
   let req;
   try { req = JSON.parse(body); } catch { return [400, {error: 'body is not JSON'}]; }
@@ -106,8 +118,11 @@ function accept(body) {
     gameName: String(req.gameName ?? '').slice(0, 200),
     hostUserId: String(req.hostUserId ?? '').slice(0, 40),
     acceptedAt: new Date().toISOString(),
+    // Chosen here, once, so a restarted supervisor keeps the game's model.
+    model: pickModel(all),
   };
   fs.writeFileSync(path.join(dir, 'job.json'), JSON.stringify(job, null, 1), {mode: 0o600});
+  log(`accepted ${short(playerId)} on ${job.model}`);
   supervise(playerId, dir);
   return [202, {accepted: true}];
 }
@@ -133,7 +148,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  log(`listening on 127.0.0.1:${PORT}; home ${HOME}; seats on ${ORIGIN}; limits ${MAX_CONCURRENT} at once, ${MAX_PER_DAY} per day`);
+  log(`listening on 127.0.0.1:${PORT}; home ${HOME}; seats on ${ORIGIN}; limits ${MAX_CONCURRENT} at once, ${MAX_PER_DAY} per day; models ${MODELS.join(' | ')}`);
   for (const j of jobs()) if (!j.done) { log(`resuming live game ${short(j.id)}`); supervise(j.id, j.dir); }
 });
 
