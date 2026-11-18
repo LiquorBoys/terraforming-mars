@@ -30,8 +30,8 @@ MODEL=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("job.json","u
 REFS="$SKILL_SRC/references"
 mkdir -p logs cache lessons lessons-seed
 
-CHILD=
-trap 'say "signal received: stopping without marking the game done"; [ -n "$CHILD" ] && kill -TERM "$CHILD" 2>/dev/null; exit 143' TERM INT
+CHILD=; WATCH=
+trap 'say "signal received: stopping without marking the game done"; [ -n "$WATCH" ] && kill "$WATCH" 2>/dev/null; [ -n "$CHILD" ] && kill -TERM "$CHILD" 2>/dev/null; exit 143' TERM INT
 
 # The runner's account has two checkouts:
 #   $REPO    this repository, read-only, for the skill itself
@@ -173,7 +173,31 @@ run() {
       --max-budget-usd "$BUDGET" --autocompact 200k --append-system-prompt "$OVERLAY" \
       --output-format stream-json --verbose \
       < /dev/null > "logs/$tag.jsonl" 2> "logs/$tag.err" &
-  CHILD=$!; wait "$CHILD"; RUN_RC=$?; CHILD=
+  CHILD=$!
+  # Once the game is over the run has nothing left to do, but `claude -p` stays open until every
+  # background command it started has exited, and a watcher started just before the end can sit
+  # there for another 50 minutes, holding one of the runner's game slots. So stop the run a
+  # minute after the postmortem is written, or 15 minutes after the game ended if it never is.
+  (
+    over=0
+    while kill -0 "$CHILD" 2>/dev/null; do
+      sleep 30
+      if [ -f postmortem.done ]; then
+        sleep 30; say "$tag: the game is over and the postmortem is written; stopping the run"
+        kill -TERM "$CHILD" 2>/dev/null; exit 0
+      fi
+      if [ "$(state)" = end ]; then over=$((over + 1)); else over=0; fi
+      if [ "$over" -ge 30 ]; then
+        say "$tag: the game has been over for 15 minutes with no postmortem; stopping the run"
+        kill -TERM "$CHILD" 2>/dev/null; exit 0
+      fi
+    done
+  ) &
+  WATCH=$!
+  wait "$CHILD"; RUN_RC=$?; CHILD=
+  kill "$WATCH" 2>/dev/null; wait "$WATCH" 2>/dev/null; WATCH=
+  # A run that wrote its postmortem did its job, however it then ended.
+  [ -f postmortem.done ] && RUN_RC=0
   RUN_SECS=$(( $(date +%s) - t0 ))
   local summary
   summary=$(node -e '
