@@ -1,38 +1,40 @@
 <template>
-<div class="payments_cont">
-  <div v-if="showtitle === true">{{ $t(playerinput.title) }}</div>
-  <label v-for="availableCard in cards" class="payments_cards" :key="availableCard.name">
-    <input v-if="!availableCard.isDisabled" class="hidden" type="radio" v-model="cardName" :value="availableCard.name" >
-    <Card class="cardbox" :card="availableCard" />
-  </label>
-  <template v-if="card !== undefined && card.additionalProjectCosts">
-    <div v-if="card.additionalProjectCosts.aeronGenomicsResources" class="card-warning"
-      v-i18n="[$t(card.name), card.additionalProjectCosts.aeronGenomicsResources, 'animals', $t(CardName.AERON_GENOMICS)]"
-    >
-      Playing ${0} consumes ${1} ${2} from ${3}
-    </div>
-    <div v-if="card.additionalProjectCosts.thinkTankResources" class="card-warning"
-      v-i18n="[$t(card.name), card.additionalProjectCosts.thinkTankResources, 'data', $t(CardName.THINK_TANK)]">
-      Playing ${0} consumes ${1} ${2} from ${3}
-    </div>
-    <div v-if="card.additionalProjectCosts.redsCost" class="card-warning" v-i18n="[$t(card.name), card.additionalProjectCosts.redsCost, $t('Reds')]">
-      Playing ${0} will cost ${1} M€ more because ${2} are in power
-    </div>
-  </template>
-  <WarningsComponent v-if="card !== undefined" :warnings="card.warnings"/>
+  <div class="payments_cont">
+    <div v-if="showtitle === true">{{ $t(playerinput.title) }}</div>
+    <template v-for="c in cards" :key="c.name">
+      <label v-if="experimentalUI || !c.isDisabled" class="payments_cards">
+        <input v-if="!c.isDisabled" class="hidden" type="radio" v-model="cardName" :value="c.name">
+        <Card class="cardbox" :card="c" />
+      </label>
+    </template>
+    <template v-if="card !== undefined && card.additionalProjectCosts">
+      <div v-if="card.additionalProjectCosts.aeronGenomicsResources" class="card-warning"
+        v-i18n="[$t(card.name), card.additionalProjectCosts.aeronGenomicsResources, 'animals', $t(CardName.AERON_GENOMICS)]"
+      >
+        Playing ${0} consumes ${1} ${2} from ${3}
+      </div>
+      <div v-if="card.additionalProjectCosts.thinkTankResources" class="card-warning"
+        v-i18n="[$t(card.name), card.additionalProjectCosts.thinkTankResources, 'data', $t(CardName.THINK_TANK)]">
+        Playing ${0} consumes ${1} ${2} from ${3}
+      </div>
+      <div v-if="card.additionalProjectCosts.redsCost" class="card-warning" v-i18n="[$t(card.name), card.additionalProjectCosts.redsCost, $t('Reds')]">
+        Playing ${0} will cost ${1} M€ more because ${2} are in power
+      </div>
+    </template>
+    <WarningsComponent v-if="card !== undefined" :warnings="card.warnings" />
 
-  <PaymentForm
-    v-if="showPaymentSection"
-    ref="paymentForm"
-    :key="cardName"
-    :cost="cost"
-    :order="order"
-    :ledger="ledger"
-    :showsave="showsave"
-    :buttonLabel="playerinput.buttonLabel"
-    @change="(p) => payment = p"
-    @save="doSave"/>
-</div>
+    <PaymentForm
+      v-if="showPaymentSection"
+      ref="paymentForm"
+      :key="cardName"
+      :cost="cost"
+      :order="order"
+      :ledger="ledger"
+      :showsave="showsave"
+      :buttonLabel="playerinput.buttonLabel"
+      @change="(p) => payment = p"
+      @save="doSave" />
+  </div>
 </template>
 
 <script lang="ts">
@@ -52,6 +54,7 @@ import {SelectProjectCardToPlayResponse} from '@/common/inputs/InputResponse';
 import WarningsComponent from '@/client/components/WarningsComponent.vue';
 import PaymentForm from '@/client/components/PaymentForm.vue';
 import {Ledger} from '@/client/components/PaymentLedger';
+import {getPreferences} from '@/client/utils/PreferencesManager';
 
 export default defineComponent({
   name: 'SelectProjectCardToPlay',
@@ -112,6 +115,9 @@ export default defineComponent({
     canUseTitaniumRegularly(): boolean {
       return this.tags.includes(Tag.SPACE) ||
           this.playerView.thisPlayer.lastCardPlayed === CardName.LAST_RESORT_INGENUITY;
+    },
+    experimentalUI(): boolean {
+      return getPreferences().experimental_ui;
     },
   },
   watch: {
