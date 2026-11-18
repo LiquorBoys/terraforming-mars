@@ -14,7 +14,8 @@ Slack modal -> bot (Vercel) --signed POST /seat--> runner (this) -> claude -p (s
 
 | File | Role |
 | --- | --- |
-| `server.mjs` | Listens on `127.0.0.1`. Verifies the signature, checks the link is a seat on the allowed TM server, enforces the limits, starts one supervisor per seat, and restarts supervisors for live games when it starts. |
+| `league.mjs` | Builds the league record of a finished game from what its spectator id can read. |
+| `server.mjs` | Listens on `127.0.0.1`. Runs the league collector. Verifies the signature, checks the link is a seat on the allowed TM server, enforces the limits, starts one supervisor per seat, and restarts supervisors for live games when it starts. |
 | `run-seat.sh` | Supervisor for one seat: prepares the game directory, runs `claude -p`, resumes the session whenever a run ends while the game is live, publishes lessons, reports the outcome. |
 | `notify.mjs` | Signed report to the bot. `failed` carries the seat link so a person can take over; `ended` carries the final standings. |
 | `sign.mjs` | The request signature, shared by both directions. `../src/runner.ts` is the bot's copy; `tests/runner.spec.ts` checks they agree. |
@@ -27,8 +28,8 @@ The skill's `tm.js` evaluates JavaScript that the model writes (the guards in
 
 1. **A separate, unprivileged OS account.** The runner and everything under it
    run as an account that cannot read the owner's home and cannot `sudo`. Its
-   own secrets are the Claude token, the shared secret and (optionally) a
-   deploy key.
+   own secrets are the Claude token, the shared secret and a deploy key for
+   the league repository.
 2. **Claude Code's sandbox**, per game: Bash and everything it starts can read
    and write only that game's directory and reach only the TM server; the
    Claude token is removed from their environment. `--restricted` confines the
@@ -48,7 +49,8 @@ The skill's `tm.js` evaluates JavaScript that the model writes (the guards in
 | `TM_STATUS_URL` | unset | `https://<bot-domain>/api/claude/status`. Unset means outcomes are only logged locally. |
 | `TM_ALLOWED_ORIGIN` | `https://terraforming-mars.herokuapp.com` | The only TM server whose seats are accepted. Must match the bot's `TM_BASE_URL`. |
 | `TM_RUNNER_PORT` | `8787` | Localhost port. |
-| `TM_BASE_BRANCH` | `main` | Branch the lessons branch is rebased onto before each game. |
+| `TM_BASE_BRANCH` | `main` | Branch of this repository the skill is updated from before each game. |
+| `TM_COLLECT_SECONDS` | `60` | How often the league collector looks at unfinished games. |
 
 The bot needs `CLAUDE_RUNNER_URL` (the public origin that reaches this
 listener) and `CLAUDE_RUNNER_SECRET` (the contents of `~/tm-claude/runner-secret`).
@@ -62,11 +64,35 @@ full Claude Code transcript), `cache/` (the skill's plans and analysis),
 is the credential for its seat, so the directory is private to the account
 and the server log only ever prints a prefix.
 
-## Lessons
+## The league repository
 
-Each game starts from the checkout's `claude/lessons` branch, rebased onto
-`main`, and writes to its own copies of `lessons.md` and `lessons-log.md`.
-After the game the supervisor merges those into the checkout (three-way,
-keeping both sides of any overlap), commits, and pushes `claude/lessons`.
-Getting them onto `main` is a pull request from that branch; the push needs a
-deploy key with write access, and without one the commits simply stay local.
+The runner's account has two checkouts: this repository, read-only, for the
+skill; and a separate data repository (`~/tm-claude/league`) that it may push
+to. It has no write access to this repository on purpose: every branch pushed
+here gets a Vercel preview deployment with the bot's Slack tokens in its
+environment, so being able to push here means being able to read them.
+
+### Game records
+
+The bot tells the runner about every game it creates (`POST /game`), with or
+without Claude. Once a minute the collector in `server.mjs` reads each of
+those games through its spectator id; when one has ended it writes
+
+- `games/<game id>.json.gz`: the whole public log and the final public state;
+- an entry in `games.json`: the compact summary the stats page reads
+  (`league.mjs` documents the fields);
+
+and commits and pushes. No model is involved. People appear under their
+in-game name and a keyed hash of their Slack id, never the id itself; Claude
+appears as `claude-<model>`, which is the only place a game's model is
+revealed. The seed comes from the bot, since spectators cannot see it. Games
+the server has purged, or that are unfinished after 14 days, are dropped.
+
+### Lessons
+
+`lessons/` in the league repository holds Claude's live copies of
+`lessons.md` and `lessons-log.md`. Before each game the supervisor folds in
+whatever has changed in the skill's own copies since last time; each game
+works on its own copies; after the game its changes are merged back, three
+ways, keeping both sides of any overlap, and pushed. Getting them into the
+skill is a pull request to this repository made by a person.

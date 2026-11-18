@@ -60,20 +60,48 @@ export interface ClaudeSeatRequest {
   playerUrl: string;
   gameName: string;
   hostUserId: string;
+  /** Lets the runner connect the seat to the game's league record. */
+  gameId: string;
+}
+
+/** A game the bot created, for the runner's league collector (claude-runner/league.mjs). */
+export interface GameCreatedNotice {
+  gameId: string;
+  spectatorId: string;
+  name: string;
+  /** Only the bot knows the seed: the TM server does not show it to spectators. */
+  seed: number;
+  players: Array<{color: string; name: string; slackUserId?: string; claude?: true}>;
 }
 
 export type DispatchResult = {ok: true} | {ok: false; reason: string};
 
 /** Ask the runner to play a seat. Never throws; a failure carries the reason. */
-export async function dispatchClaudeSeat(
+export function dispatchClaudeSeat(
   cfg: RunnerConfig,
   seat: ClaudeSeatRequest,
   fetchImpl: typeof fetch = fetch,
 ): Promise<DispatchResult> {
-  const body = JSON.stringify(seat);
+  return post(cfg, '/seat', seat, fetchImpl);
+}
+
+/**
+ * Tell the runner a game exists so that it records the result when the game
+ * ends. Sent for every game, with or without Claude. Never throws.
+ */
+export function notifyGameCreated(
+  cfg: RunnerConfig,
+  game: GameCreatedNotice,
+  fetchImpl: typeof fetch = fetch,
+): Promise<DispatchResult> {
+  return post(cfg, '/game', game, fetchImpl);
+}
+
+async function post(cfg: RunnerConfig, path: string, payload: unknown, fetchImpl: typeof fetch): Promise<DispatchResult> {
+  const body = JSON.stringify(payload);
   const timestamp = String(Math.floor(Date.now() / 1000));
   try {
-    const res = await fetchImpl(`${cfg.url}/seat`, {
+    const res = await fetchImpl(`${cfg.url}${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

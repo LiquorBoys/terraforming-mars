@@ -5,8 +5,13 @@
 // seat. Listens on localhost only; `tailscale funnel` is what makes it reachable from Vercel.
 // Node built-ins only, so it runs from a bare checkout.
 //
-//   POST /seat    {playerUrl, gameName, hostUserId}   signed, see sign.mjs
-//   GET  /health  {ok, running, maxConcurrent}        unsigned, reveals nothing about games
+//   POST /seat    {playerUrl, gameName, hostUserId, gameId}   signed, see sign.mjs
+//   POST /game    {gameId, spectatorId, name, seed, players}   signed; every game the bot creates
+//   GET  /health  {ok, running, maxConcurrent}                 unsigned, reveals nothing about games
+//
+// /game feeds the league collector (league.mjs): once a minute it looks at each game it was told
+// about through the spectator id, and when one has ended it saves the record to the league
+// checkout and pushes it. No model is involved, so this covers games Claude is not in.
 //
 // State is the filesystem: $TM_RUNNER_HOME/games/<playerId>/job.json exists from acceptance, and
 // a `done` file appears when its supervisor has finished for good. A game with a job and no
@@ -18,7 +23,10 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import zlib from 'node:zlib';
+import {execFileSync} from 'node:child_process';
 import {verify} from './sign.mjs';
+import {buildFull, buildSummary, fetchGame, personKey} from './league.mjs';
 
 const env = process.env;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -34,6 +42,10 @@ const MAX_PER_DAY = Number(env.TM_MAX_PER_DAY || 8);
 const MODELS = (env.TM_MODEL || 'opus').split(',').map((m) => m.trim()).filter(Boolean);
 const SECRET_FILE = env.TM_RUNNER_SECRET_FILE || path.join(HOME, 'runner-secret');
 const MAX_BODY = 16 * 1024;
+const LEAGUE = env.TM_LEAGUE_DIR || path.join(HOME, 'league');
+const PENDING = path.join(HOME, 'league-pending');
+const COLLECT_EVERY_MS = Number(env.TM_COLLECT_SECONDS || 60) * 1000;
+const FORGET_AFTER_DAYS = 14; // the TM server purges games after about ten
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 // A player id is the credential for its seat, so logs only ever carry a prefix of it.
@@ -51,6 +63,14 @@ if (secret.length < 32) {
   process.exit(1);
 }
 fs.mkdirSync(GAMES, {recursive: true});
+fs.mkdirSync(PENDING, {recursive: true});
+fs.mkdirSync(path.join(LEAGUE, 'games'), {recursive: true});
+
+// Salt for the public per-person keys. Separate from the shared secret so that rotating the
+// secret does not give everyone a new identity in the stats.
+const SALT_FILE = path.join(HOME, 'league-salt');
+if (!fs.existsSync(SALT_FILE)) fs.writeFileSync(SALT_FILE, crypto.randomBytes(32).toString('hex') + '\n', {mode: 0o600});
+const salt = fs.readFileSync(SALT_FILE, 'utf8').trim();
 
 const supervisors = new Map(); // playerId -> ChildProcess
 
@@ -117,6 +137,7 @@ function accept(body) {
     playerUrl: `${ORIGIN}/player?id=${playerId}`,
     gameName: String(req.gameName ?? '').slice(0, 200),
     hostUserId: String(req.hostUserId ?? '').slice(0, 40),
+    gameId: /^g[0-9a-f]{6,40}$/.test(req.gameId ?? '') ? req.gameId : undefined,
     acceptedAt: new Date().toISOString(),
     // Chosen here, once, so a restarted supervisor keeps the game's model.
     model: pickModel(all),
@@ -127,22 +148,107 @@ function accept(body) {
   return [202, {accepted: true}];
 }
 
+// ---- league: games to collect ----
+
+function acceptGame(body) {
+  let req;
+  try { req = JSON.parse(body); } catch { return [400, {error: 'body is not JSON'}]; }
+  if (!/^g[0-9a-f]{6,40}$/.test(req?.gameId ?? '') || !/^s[0-9a-f]{6,40}$/.test(req?.spectatorId ?? '')) return [400, {error: 'gameId or spectatorId missing or malformed'}];
+  if (!Array.isArray(req.players) || req.players.length === 0) return [400, {error: 'players missing'}];
+  const file = path.join(PENDING, req.gameId + '.json');
+  if (fs.existsSync(file)) return [200, {accepted: true, duplicate: true}];
+  const meta = {
+    gameId: req.gameId,
+    spectatorId: req.spectatorId,
+    name: String(req.name ?? '').slice(0, 200),
+    seed: typeof req.seed === 'number' ? req.seed : null,
+    createdAt: new Date().toISOString(),
+    players: req.players.slice(0, 8).map((p) => ({
+      color: String(p.color),
+      name: String(p.name ?? '').slice(0, 80),
+      ...(p.claude === true ? {claude: true} : {key: typeof p.slackUserId === 'string' && p.slackUserId !== '' ? personKey(salt, p.slackUserId) : `name_${String(p.name ?? '')}`}),
+    })),
+  };
+  fs.writeFileSync(file, JSON.stringify(meta, null, 1));
+  return [202, {accepted: true}];
+}
+
+const git = (...args) => execFileSync('git', ['-C', LEAGUE, ...args], {encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']}).trim();
+
+// Same lock directory the supervisors take in run-seat.sh before touching the league checkout.
+const LOCK = path.join(HOME, 'league.lock');
+function withLeagueLock(fn) {
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  for (let i = 0; i < 120; i++) {
+    try { fs.mkdirSync(LOCK); break; } catch { Atomics.wait(pause, 0, 0, 1000); }
+    if (i === 119) log('league lock held for 2 minutes; taking it');
+  }
+  try { return fn(); } finally { fs.rmSync(LOCK, {recursive: true, force: true}); }
+}
+
+function saveRecord(summary, full) {
+  fs.writeFileSync(path.join(LEAGUE, 'games', summary.id + '.json.gz'), zlib.gzipSync(JSON.stringify(full)));
+  const index = path.join(LEAGUE, 'games.json');
+  let all = [];
+  try { all = JSON.parse(fs.readFileSync(index, 'utf8')); } catch { /* first game */ }
+  all = all.filter((g) => g.id !== summary.id).concat(summary).sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  fs.writeFileSync(index, JSON.stringify(all));
+  if (!fs.existsSync(path.join(LEAGUE, '.git'))) { log(`league: saved ${summary.id} locally (${LEAGUE} is not a git checkout)`); return; }
+  try {
+    git('add', 'games.json', 'games');
+    git('-c', 'user.name=TM league collector', '-c', 'user.email=noreply@anthropic.com', 'commit', '-q', '-m', `game: ${summary.name} (${summary.players.length} players, ${summary.generations} generations)`);
+    try { git('pull', '-q', '--rebase'); git('push', '-q'); log(`league: saved and pushed ${summary.id}`); } catch (err) { log(`league: saved ${summary.id}, committed locally, push failed: ${String(err.stderr || err.message).trim().slice(0, 300)}`); }
+  } catch (err) {
+    log(`league: saved ${summary.id}, commit failed: ${String(err.stderr || err.message).trim().slice(0, 300)}`);
+  }
+}
+
+let collecting = false;
+async function collect() {
+  if (collecting) return;
+  collecting = true;
+  try {
+    for (const f of fs.readdirSync(PENDING).filter((x) => x.endsWith('.json'))) {
+      const file = path.join(PENDING, f);
+      const meta = JSON.parse(fs.readFileSync(file, 'utf8'));
+      try {
+        const got = await fetchGame(ORIGIN, meta.spectatorId);
+        if (got.gone || Date.now() - Date.parse(meta.createdAt) > FORGET_AFTER_DAYS * 86400e3) {
+          log(`league: giving up on ${meta.gameId}: ${got.gone ? 'the server no longer has it (' + got.why + ')' : 'not finished after ' + FORGET_AFTER_DAYS + ' days'}`);
+          fs.rmSync(file); continue;
+        }
+        if (!got.ended) continue;
+        // Claude's seat is "Claude" to the table; which model played it is only recorded here.
+        const model = jobs().find((j) => j.job.gameId === meta.gameId)?.job.model;
+        for (const p of meta.players) if (p.claude) { p.claudeModel = model ?? 'unknown'; p.key = `claude-${p.claudeModel}`; }
+        const summary = buildSummary(meta, got.spec, got.endedAt);
+        const full = buildFull(summary, got.spec, got.logs);
+        withLeagueLock(() => saveRecord(summary, full));
+        fs.rmSync(file);
+      } catch (err) {
+        log(`league: ${meta.gameId} not collected this round: ${err.message}`);
+      }
+    }
+  } finally { collecting = false; }
+}
+setInterval(collect, COLLECT_EVERY_MS).unref();
+
 const server = http.createServer((req, res) => {
   const send = (status, obj) => { res.writeHead(status, {'Content-Type': 'application/json'}); res.end(JSON.stringify(obj)); };
   if (req.method === 'GET' && req.url === '/health') {
     return send(200, {ok: true, running: jobs().filter((j) => !j.done).length, maxConcurrent: MAX_CONCURRENT});
   }
-  if (req.method !== 'POST' || req.url !== '/seat') return send(404, {error: 'not found'});
+  if (req.method !== 'POST' || (req.url !== '/seat' && req.url !== '/game')) return send(404, {error: 'not found'});
   const chunks = []; let size = 0;
   req.on('data', (c) => { size += c.length; if (size > MAX_BODY) { send(413, {error: 'body too large'}); req.destroy(); } else chunks.push(c); });
   req.on('end', () => {
     if (size > MAX_BODY) return;
     const body = Buffer.concat(chunks).toString('utf8');
     const why = verify(secret, req.headers['x-tm-timestamp'], req.headers['x-tm-signature'], body);
-    if (why) { log(`rejected /seat: ${why}`); return send(401, {error: why}); }
+    if (why) { log(`rejected ${req.url}: ${why}`); return send(401, {error: why}); }
     let status, obj;
-    try { [status, obj] = accept(body); } catch (err) { log('accept failed:', err); return send(500, {error: `runner error: ${err.message}`}); }
-    log(`/seat -> ${status}`, obj.error ?? (obj.duplicate ? 'duplicate' : 'accepted'));
+    try { [status, obj] = req.url === '/seat' ? accept(body) : acceptGame(body); } catch (err) { log('accept failed:', err); return send(500, {error: `runner error: ${err.message}`}); }
+    log(`${req.url} -> ${status}`, obj.error ?? (obj.duplicate ? 'duplicate' : 'accepted'));
     send(status, obj);
   });
 });

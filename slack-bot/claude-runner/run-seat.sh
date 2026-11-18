@@ -12,6 +12,7 @@ GAME="$1"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="${TM_RUNNER_HOME:-$HOME/tm-claude}"
 REPO="${TM_SKILL_REPO:-$ROOT/repo}"
+LEAGUE="${TM_LEAGUE_DIR:-$ROOT/league}"
 SKILL_SRC="${TM_SKILL_DIR:-$REPO/slack-bot/claude-skill/terraforming-mars}"
 BUDGET="${TM_BUDGET_USD:-300}"
 IDLE_HOURS="${TM_IDLE_HOURS:-12}"
@@ -32,41 +33,62 @@ mkdir -p logs cache lessons lessons-seed
 CHILD=
 trap 'say "signal received: stopping without marking the game done"; [ -n "$CHILD" ] && kill -TERM "$CHILD" 2>/dev/null; exit 143' TERM INT
 
-# One writer at a time in the shared checkout (two games can start or end together).
-lock() { local i=0; until mkdir "$ROOT/repo.lock" 2>/dev/null; do i=$((i + 1)); [ "$i" -ge 120 ] && { say "repo lock held for 2 minutes; taking it"; break; }; sleep 1; done; }
-unlock() { rmdir "$ROOT/repo.lock" 2>/dev/null; }
+# The runner's account has two checkouts:
+#   $REPO    this repository, read-only, for the skill itself
+#   $LEAGUE  the league data repository, which it may push to; lessons/ there holds Claude's
+#            live lessons. They are not pushed to this repository: every branch pushed here gets
+#            a Vercel preview deployment with the bot's Slack tokens, so write access here would
+#            be access to those tokens.
+# One writer at a time in the league checkout (two games can start or end together, and the
+# league collector commits there too).
+lock() { local i=0; until mkdir "$ROOT/league.lock" 2>/dev/null; do i=$((i + 1)); [ "$i" -ge 120 ] && { say "league lock held for 2 minutes; taking it"; break; }; sleep 1; done; }
+unlock() { rmdir "$ROOT/league.lock" 2>/dev/null; }
+lgit() { git -C "$LEAGUE" -c user.name="Claude (TM runner)" -c user.email="noreply@anthropic.com" "$@"; }
 
-# Bring the checkout's claude/lessons branch up to date with main, so this game plays with every
-# lesson already merged there plus the ones this machine has written since.
-refresh_repo() {
-  [ -d "$REPO/.git" ] || { say "no git checkout at $REPO; using the skill as it is"; return; }
-  lock
+# commit_lessons <message>: commit lessons/ in the league checkout and push; failures are logged, never fatal.
+commit_lessons() {
   local out
-  if ! out=$(git -C "$REPO" fetch -q origin "$BASE_BRANCH" 2>&1); then say "git fetch failed, playing with the checkout as it is: $out"; unlock; return; fi
-  git -C "$REPO" switch -q claude/lessons 2>/dev/null || git -C "$REPO" switch -q -c claude/lessons "origin/$BASE_BRANCH"
-  if ! out=$(git -C "$REPO" rebase -q "origin/$BASE_BRANCH" 2>&1); then git -C "$REPO" rebase --abort 2>/dev/null; say "rebase onto $BASE_BRANCH failed, playing with the checkout as it is: $out"; fi
+  [ -d "$LEAGUE/.git" ] || { say "$LEAGUE is not a git checkout; lessons are kept there unpublished"; return; }
+  lgit add lessons
+  if lgit diff --cached --quiet; then return; fi
+  if ! out=$(lgit commit -q -m "$1" 2>&1); then say "lessons commit failed: $out"; return; fi
+  if out=$(lgit pull -q --rebase 2>&1 && lgit push -q 2>&1); then say "lessons pushed: $1"; else say "lessons committed locally, not pushed: $out"; fi
+}
+
+# Before a game: update the skill, then fold any lessons people have merged into this repository
+# into Claude's live copies. lessons/.base holds this repository's version as of the last fold,
+# which is what makes a three-way merge possible.
+refresh() {
+  local out f
+  if [ -d "$REPO/.git" ]; then
+    out=$(git -C "$REPO" pull -q --ff-only origin "$BASE_BRANCH" 2>&1) || say "skill update failed, playing with the checkout as it is: $out"
+  else say "no git checkout at $REPO; using the skill as it is"; fi
+  lock
+  [ -d "$LEAGUE/.git" ] && { out=$(lgit pull -q --rebase 2>&1) || say "league update failed, continuing with the local copy: $out"; }
+  mkdir -p "$LEAGUE/lessons/.base"
+  for f in lessons.md lessons-log.md; do
+    [ -f "$REFS/$f" ] || continue
+    if [ ! -f "$LEAGUE/lessons/$f" ]; then cp "$REFS/$f" "$LEAGUE/lessons/$f"; cp "$REFS/$f" "$LEAGUE/lessons/.base/$f"
+    elif ! cmp -s "$REFS/$f" "$LEAGUE/lessons/.base/$f"; then
+      git merge-file --union "$LEAGUE/lessons/$f" "$LEAGUE/lessons/.base/$f" "$REFS/$f" 2>/dev/null; cp "$REFS/$f" "$LEAGUE/lessons/.base/$f"
+    fi
+  done
+  commit_lessons "lessons: fold in changes from the skill repository"
   unlock
 }
 
-# Fold this game's lessons back into the checkout and push them. Each file is merged three ways
-# against the copy the game started from, keeping both sides of any overlap; cleaning that up is
-# what the pull request from claude/lessons is for.
-sync_lessons() {
-  [ -d "$REPO/.git" ] || { say "no git checkout at $REPO; lessons stay in $GAME/lessons"; return; }
+# After a game: merge what it wrote into the live copies, three ways against the copy it started
+# from, keeping both sides of any overlap. Tidying that up is a person's job when they copy the
+# lessons back into the skill by pull request.
+publish_lessons() {
+  local f
   lock
-  local f out changed=0
   for f in lessons.md lessons-log.md; do
     [ -f "lessons/$f" ] && [ -f "lessons-seed/$f" ] || continue
     cmp -s "lessons/$f" "lessons-seed/$f" && continue
-    git merge-file --union "$REFS/$f" "lessons-seed/$f" "lessons/$f" 2>/dev/null; changed=1
+    git merge-file --union "$LEAGUE/lessons/$f" "lessons-seed/$f" "lessons/$f" 2>/dev/null
   done
-  if [ "$changed" -eq 1 ]; then
-    git -C "$REPO" add slack-bot/claude-skill/terraforming-mars/references
-    if out=$(git -C "$REPO" -c user.name="Claude (TM runner)" -c user.email="noreply@anthropic.com" commit -q -m "lessons: $1" 2>&1); then
-      say "lessons committed on claude/lessons"
-      if out=$(git -C "$REPO" push -q --force-with-lease origin claude/lessons 2>&1); then say "lessons pushed"; else say "lessons not pushed (they stay committed locally): $out"; fi
-    else say "lessons commit failed: $out"; fi
-  else say "the game changed no lessons"; fi
+  commit_lessons "lessons: $1"
   unlock
 }
 
@@ -79,12 +101,12 @@ finish() { # finish <ended|failed> <detail>
 
 # ---- first start only: skill copy, lessons copies, sandbox settings, session id ----
 if [ ! -f session_id ]; then
-  refresh_repo
+  refresh
   [ -f "$SKILL_SRC/SKILL.md" ] || finish failed "the skill was not found at $SKILL_SRC"
   mkdir -p plugin/.claude-plugin plugin/skills
   echo '{"name": "tm", "description": "Terraforming Mars player skill", "version": "0.0.1"}' > plugin/.claude-plugin/plugin.json
   cp -R "$SKILL_SRC" plugin/skills/terraforming-mars
-  for f in lessons.md lessons-log.md; do cp "$REFS/$f" "lessons/$f"; cp "$REFS/$f" "lessons-seed/$f"; done
+  for f in lessons.md lessons-log.md; do cp "$LEAGUE/lessons/$f" "lessons/$f"; cp "$LEAGUE/lessons/$f" "lessons-seed/$f"; done
   cat > settings.json <<EOF
 {
   "sandbox": {
@@ -205,7 +227,7 @@ while :; do
       continue
     fi
     name=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("job.json","utf8")).gameName || "unnamed game")')
-    sync_lessons "$name"
+    publish_lessons "$name"
     finish ended ""
   fi
   run resume "Runner: your previous run ended, the game is still live and your seat has input pending. Continue playing."

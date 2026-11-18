@@ -2,6 +2,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import type {WebClient} from '@slack/web-api';
 import {
   dispatchClaudeSeat,
+  notifyGameCreated,
   runnerConfig,
   signRunnerRequest,
   verifyRunnerSignature,
@@ -15,7 +16,7 @@ import {buildHostSummaryFromGameModel, dmHostSummary} from '../src/slack/notify.
 
 const SECRET = 's'.repeat(64);
 const NOW = 1_800_000_000;
-const SEAT = {playerUrl: 'https://tm.example/player?id=pc0ffee', gameName: 'Mars-42', hostUserId: 'U0HOST123'};
+const SEAT = {playerUrl: 'https://tm.example/player?id=pc0ffee', gameName: 'Mars-42', hostUserId: 'U0HOST123', gameId: 'gabc123'};
 
 afterEach(() => {
   delete process.env.CLAUDE_RUNNER_URL;
@@ -84,6 +85,74 @@ describe('dispatchClaudeSeat', () => {
     const fetchImpl = vi.fn(async () => { throw Object.assign(new TypeError('fetch failed'), {cause: {code: 'ECONNREFUSED'}}); });
     expect(await dispatchClaudeSeat(cfg, SEAT, fetchImpl as unknown as typeof fetch))
       .toEqual({ok: false, reason: "Claude's machine could not be reached (ECONNREFUSED)"});
+  });
+});
+
+describe('notifyGameCreated', () => {
+  it('POSTs the game, seed included, to /game', async () => {
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => new Response('{"accepted":true}', {status: 202}));
+    const game = {
+      gameId: 'gabc123', spectatorId: 'sabc123', name: 'Mars-42', seed: 0.25,
+      players: [{color: 'red', name: 'Alice', slackUserId: 'U_ALICE'}, {color: 'orange', name: 'Claude', claude: true as const}],
+    };
+    expect(await notifyGameCreated({url: 'https://runner.example', secret: SECRET}, game, fetchImpl as unknown as typeof fetch)).toEqual({ok: true});
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe('https://runner.example/game');
+    expect(JSON.parse(init!.body as string)).toEqual(game);
+  });
+});
+
+describe('league records (claude-runner/league.mjs)', () => {
+  const player = (color: string, name: string, vp: number, mc: number, extra: Record<string, unknown> = {}) => ({
+    id: 'p' + color, color, name, terraformRating: 30, megacredits: mc, steel: 4, steelValue: 2, titanium: 3, titaniumValue: 3,
+    cardsInHandNbr: 1, actionsTakenThisGame: 50, timer: {sumElapsed: 600000}, tableau: [{name: 'Corp ' + color}, {name: 'A card'}],
+    victoryPointsByGeneration: [20, vp],
+    victoryPointsBreakdown: {terraformRating: 30, milestones: 5, awards: 0, greenery: 3, city: 2, victoryPoints: vp - 40, total: vp},
+    ...extra,
+  });
+  const spec = {
+    game: {
+      name: 'Mars-42', generation: 9, phase: 'end',
+      gameOptions: {boardName: 'tharsis', expansions: {prelude: true, turmoil: false}, twoCorpsVariant: false, draftVariant: true, solarPhaseOption: false, randomMA: 'Limited synergy'},
+      awards: [{name: 'Banker', color: 'red', playerName: 'Alice', scores: [{color: 'red', score: 3}, {color: 'blue', score: 9}]}, {name: 'Miner', scores: []}],
+      milestones: [{name: 'Mayor', color: 'blue', playerName: 'Bob', scores: []}, {name: 'Builder', scores: []}],
+    },
+    players: [player('red', 'Alice', 70, 10), player('blue', 'Bob', 80, 0), player('orange', 'Claude', 70, 25)],
+  };
+  const meta = {
+    gameId: 'gabc123', name: 'Mars-42', createdAt: '2026-11-18T00:00:00.000Z', seed: 0.25,
+    players: [{color: 'red', name: 'Alice', key: 'u_aaa'}, {color: 'blue', name: 'Bob', key: 'u_bbb'}, {color: 'orange', name: 'Claude', key: 'claude-opus', claudeModel: 'opus'}],
+  };
+  type League = {
+    buildSummary: (meta: unknown, spec: unknown, endedAt: string) => {
+      seed: number; expansions: Array<string>; awards: Array<unknown>; milestones: Array<unknown>;
+      players: Array<{key: string; rank: number; corps: Array<string>; claudeModel?: string; cardsPlayed: number; vpParts: Record<string, number>}>;
+    };
+    buildFull: (summary: unknown, spec: unknown, logs: unknown) => unknown;
+    personKey: (salt: string, id: string) => string;
+  };
+  const load = async () => { const path = '../claude-runner/league.mjs'; return await import(/* @vite-ignore */ path) as League; };
+
+  it('ranks by VP then M€, and records corporation, seed, model and who funded what', async () => {
+    const {buildSummary} = await load();
+    const s = buildSummary(meta, spec, '2026-11-18T02:00:00.000Z');
+    expect(s.players.map((p) => [p.key, p.rank])).toEqual([['u_aaa', 3], ['u_bbb', 1], ['claude-opus', 2]]);
+    expect(s.players[2]).toMatchObject({corps: ['Corp orange'], claudeModel: 'opus', cardsPlayed: 1});
+    expect(s.players[0]!.vpParts).toEqual({terraformRating: 30, milestones: 5, awards: 0, greenery: 3, city: 2, victoryPoints: 30, other: 0});
+    expect(s.seed).toBe(0.25);
+    expect(s.expansions).toEqual(['prelude']);
+    expect(s.awards).toEqual([{name: 'Banker', fundedBy: 'red', scores: [{color: 'red', score: 3}, {color: 'blue', score: 9}]}]);
+    expect(s.milestones).toEqual([{name: 'Mayor', claimedBy: 'blue'}]);
+  });
+
+  it('keeps player ids and Slack ids out of what gets published', async () => {
+    const {buildSummary, buildFull, personKey} = await load();
+    const full = JSON.stringify(buildFull(buildSummary(meta, spec, 'x'), spec, [[]]));
+    expect(full).not.toContain('"id":"pred"');
+    const key = personKey('salt', 'U0ALICE1234');
+    expect(key).toMatch(/^u_[0-9a-f]{12}$/);
+    expect(key).toBe(personKey('salt', 'U0ALICE1234'));
+    expect(key).not.toBe(personKey('other salt', 'U0ALICE1234'));
   });
 });
 

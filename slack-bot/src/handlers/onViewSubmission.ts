@@ -54,7 +54,7 @@ import {
 } from '../slack/notify.js';
 import {claudePlayerName, resolveClaudeOperator} from '../claude.js';
 import {postLog} from '../slack/log.js';
-import {dispatchClaudeSeat, runnerConfig} from '../runner.js';
+import {dispatchClaudeSeat, notifyGameCreated, runnerConfig} from '../runner.js';
 
 export {VIEW_CALLBACK_ID} from '../views/newGameView.js';
 
@@ -105,7 +105,7 @@ export async function onViewSubmission(
               const runner = runnerConfig();
               let runnerNote: string | undefined;
               if (runner !== undefined) {
-                const sent = await dispatchClaudeSeat(runner, {playerUrl: url, gameName: game.name, hostUserId: meta.hostUserId});
+                const sent = await dispatchClaudeSeat(runner, {playerUrl: url, gameName: game.name, hostUserId: meta.hostUserId, gameId: game.id});
                 if (sent.ok) return {slackUserId: claude.operatorUserId, ok: true, color: player.color, viaRunner: true};
                 logger.warn('[slack-bot] Claude runner did not take the seat, falling back to the operator DM', {reason: sent.reason});
                 runnerNote = sent.reason;
@@ -126,6 +126,22 @@ export async function onViewSubmission(
             return {...result, color: player.color};
           }),
         );
+
+        // Every game goes into the league record, with or without Claude. Without
+        // a spectator id there is nothing the collector could read later.
+        const runner = runnerConfig();
+        if (runner !== undefined && game.spectatorId !== undefined) {
+          const noted = await notifyGameCreated(runner, {
+            gameId: game.id,
+            spectatorId: game.spectatorId,
+            name: game.name,
+            seed: config.seed,
+            players: game.players.map((p) => claude !== undefined && p.color === claude.color ?
+              {color: p.color, name: p.name, claude: true as const} :
+              {color: p.color, name: p.name, slackUserId: slackUserIdByColor[p.color] ?? ''}),
+          });
+          if (!noted.ok) logger.warn('[slack-bot] game not registered with the league collector', {reason: noted.reason});
+        }
 
         const summary = buildHostSummaryFromGameModel(
           game.players,

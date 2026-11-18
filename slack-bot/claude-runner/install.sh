@@ -15,7 +15,7 @@ cd /
 as() { sudo -n -H -u "$ACCT" "$@"; }
 
 as /bin/mkdir -p "$DEST/runner"
-for f in server.mjs sign.mjs notify.mjs run-seat.sh start.sh; do
+for f in server.mjs sign.mjs notify.mjs league.mjs run-seat.sh start.sh; do
   as /usr/bin/tee "$DEST/runner/$f" < "$HERE/$f" > /dev/null
 done
 as /bin/chmod 755 "$DEST/runner/run-seat.sh" "$DEST/runner/start.sh"
@@ -26,6 +26,18 @@ if as /bin/test -d "$DEST/repo/.git"; then
 else
   as /usr/bin/git clone -q "$REPO_URL" "$DEST/repo"
   echo "cloned $REPO_URL to $DEST/repo"
+fi
+
+# The league data repository: game records and Claude's lessons. Cloning over ssh needs the
+# account's deploy key to be registered on that repository; without it the runner still works
+# and keeps everything in a local directory.
+LEAGUE_URL="${TM_LEAGUE_URL:-git@github.com:LiquorBoys/tm-league.git}"
+if as /bin/test -d "$DEST/league/.git"; then
+  echo "league checkout already present at $DEST/league"
+elif as /usr/bin/git clone -q "$LEAGUE_URL" "$DEST/league"; then
+  echo "cloned $LEAGUE_URL to $DEST/league"
+else
+  echo "could not clone $LEAGUE_URL (git printed the reason above); records and lessons will stay local in $DEST/league"
 fi
 
 if as /bin/test -s "$DEST/runner-secret"; then
