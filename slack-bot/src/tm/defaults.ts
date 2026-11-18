@@ -34,7 +34,7 @@ export function buildNewGameConfig(overrides: PartialNewGameConfig): NewGameConf
     undoOption: overrides.undoOption ?? true,
     showTimers: overrides.showTimers ?? true,
     fastModeOption: overrides.fastModeOption ?? false,
-    showOtherPlayersVP: overrides.showOtherPlayersVP ?? true,
+    showVP: overrides.showVP ?? 'all',
 
     aresExtremeVariant: overrides.aresExtremeVariant ?? false,
     politicalAgendasExtension: overrides.politicalAgendasExtension ?? 'Standard',
@@ -68,5 +68,6 @@ export function buildNewGameConfig(overrides: PartialNewGameConfig): NewGameConf
     customCeos: overrides.customCeos ?? [],
     startingCeos: overrides.startingCeos ?? 3,
     startingPreludes: overrides.startingPreludes ?? 4,
+    customMA: overrides.customMA,
   };
 }

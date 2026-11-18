@@ -11,6 +11,7 @@
  *   - src/common/ma/RandomMAOptionType.ts (RandomMAOptionType)
  *   - src/common/turmoil/Types.ts        (AgendaStyle)
  *   - src/common/game/NewGameConfig.ts   (NewPlayerModel, NewGameConfig, EscapeVelocityOptions)
+ *   - src/common/game/ShowVP.ts          (ShowVP)
  *   - src/common/models/SimpleGameModel.ts (SimpleGameModel)
  */
 
@@ -133,6 +134,9 @@ export type RandomMAOptionType =
   | 'Limited synergy'
   | 'Full random';
 
+/** Whose VP the game shows during play. 'yours' was showOtherPlayersVP=false, 'all' was true. */
+export type ShowVP = 'none' | 'yours' | 'all';
+
 export interface NewPlayerModel {
   name: string;
   color: PlayerColor;
@@ -168,7 +172,7 @@ export interface NewGameConfig {
   undoOption: boolean;
   showTimers: boolean;
   fastModeOption: boolean;
-  showOtherPlayersVP: boolean;
+  showVP: ShowVP;
 
   aresExtremeVariant: boolean;
   politicalAgendasExtension: AgendaStyle;
@@ -200,6 +204,8 @@ export interface NewGameConfig {
   customCeos: Array<string>;
   startingCeos: number;
   startingPreludes: number;
+  /** Custom milestone/award selection. Not exposed by the modal; always omitted. */
+  customMA?: unknown;
 }
 
 export interface SimplePlayerModel {

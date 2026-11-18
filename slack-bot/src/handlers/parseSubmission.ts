@@ -308,7 +308,8 @@ export function toNewGameConfig(
     fastModeOption: parsed.toggles.fastModeOption,
     draftVariant: parsed.toggles.draftVariant,
     initialDraft: parsed.toggles.initialDraft,
-    showOtherPlayersVP: parsed.toggles.showOtherPlayersVP,
+    // The modal keeps its two-state "Show others' VP" toggle; the server's option has three values.
+    showVP: parsed.toggles.showOtherPlayersVP ? 'all' : 'yours',
     solarPhaseOption: parsed.toggles.solarPhaseOption,
     twoCorpsVariant: parsed.toggles.twoCorpsVariant,
     removeNegativeGlobalEventsOption: parsed.toggles.removeNegativeGlobalEventsOption,
