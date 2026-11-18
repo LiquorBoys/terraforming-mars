@@ -1,3 +1,6 @@
 *.ts text eol=lf
 *.js text eol=lf
 *.vue text eol=lf
+
+# Append-only, written by several people and by unattended Claude seats: keep both sides on merge.
+slack-bot/claude-skill/terraforming-mars/references/lessons-log.md merge=union

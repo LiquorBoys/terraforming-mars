@@ -94,9 +94,14 @@
   };
 
   // POST a raw InputResponse. Returns 'OK' + the next pending input, or 'ERROR: ...' (server state unchanged).
+  // The server rejects an input that does not carry the requestId of the prompt it answers, so the id is taken
+  // from the view the response was built from (T.v), never from a re-fetch: a stale answer should be rejected.
+  // Servers from before that check send no requestId, and JSON.stringify then drops the key.
   T.send = async (resp) => {
-    const r = await fetch(`${T.base}/player/input?id=${T.pid}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(resp)});
+    const v = T.v || await T.state();
+    const r = await fetch(`${T.base}/player/input?id=${T.pid}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({requestId: v.requestId, ...resp})});
     const body = await r.json().catch(() => ({message: `HTTP ${r.status}`}));
+    if (!r.ok && body.id === '#invalid-request-id') { try { await T.state(); } catch { /* keep the old view */ } return `ERROR: ${body.message} (${body.id})\nThe prompt changed after this state was read; nothing was submitted. Re-read with \`pending\` and decide again.`; }
     if (!r.ok) return `ERROR: ${body.message}${body.id ? ' (' + body.id + ')' : ''}\nsent: ${JSON.stringify(resp).slice(0, 600)}`;
     T.v = T.geo(body);
     return 'OK\n' + (body.waitingFor ? T.render(body.waitingFor) : '(no input pending - waiting for others; use `wait`)');
@@ -536,7 +541,9 @@
   // ---------------- Node CLI ----------------
   const fs = require('fs');
   const path = require('path');
-  const CACHE = path.join(__dirname, '..', 'cache');
+  // TM_CACHE_DIR moves all per-game state (seat, card db, plans, live/) out of the skill directory, for installs
+  // where that directory is read-only (plugins, sandboxes).
+  const CACHE = process.env.TM_CACHE_DIR || path.join(__dirname, '..', 'cache');
   fs.mkdirSync(CACHE, {recursive: true});
   const SESSION = path.join(CACHE, 'session.json');
 

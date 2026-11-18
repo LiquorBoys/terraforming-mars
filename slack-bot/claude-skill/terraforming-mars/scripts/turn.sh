@@ -2,7 +2,7 @@
 # One-shot turn view: Tactician's EXECUTE block + compact state + recent log + pending prompt.
 # Usage: turn.sh <playerId> [liveDir]
 P="$1"; DIR="$(cd "$(dirname "$0")" && pwd)"
-LIVE="${2:-$(ls -td "$DIR"/../cache/live/*/ 2>/dev/null | head -1)}"
+LIVE="${2:-$(ls -td "${TM_CACHE_DIR:-$DIR/../cache}"/live/*/ 2>/dev/null | head -1)}"
 T="$DIR/tm.sh"
 echo "=== EXECUTE (next.md) ==="
 if [ -f "$LIVE/next.md" ]; then

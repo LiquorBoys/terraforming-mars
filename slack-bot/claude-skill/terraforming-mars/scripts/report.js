@@ -87,7 +87,7 @@ function rivals(T) {
   const fs = require('fs'), path = require('path');
   const v = T.v, me = v.thisPlayer.color, L = [];
   let passed = '';
-  try { passed = fs.readFileSync(path.join(__dirname, '..', 'cache', 'live', `${v.game.spectatorId}-${me}`, 'passed.md'), 'utf8'); } catch { /* none */ }
+  try { passed = fs.readFileSync(path.join(process.env.TM_CACHE_DIR || path.join(__dirname, '..', 'cache'), 'live', `${v.game.spectatorId}-${me}`, 'passed.md'), 'utf8'); } catch { /* none */ }
   const inPlay = new Set(v.players.flatMap((o) => (o.tableau || []).map((c) => c.name)));
   const tagsOf = (o) => (Array.isArray(o.tags) ? Object.fromEntries(o.tags.map((t) => [t.tag, t.count])) : {...(o.tags || {})});
   for (const o of v.players.filter((x) => x.color !== me)) {
