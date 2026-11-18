@@ -407,5 +407,7 @@ generation. lessons.md holds the principles learned from our games; its examples
 - **Always pass the player id (or URL) as the first argument of every command** (`tm.sh p5cbc… pass`). The saved
   seat in `cache/session.json` is shared by every Claude session on this machine, so another instance can change it
   under you.
+- **Read-only skill directory** (installed as a plugin, or run in a sandbox): set `TM_CACHE_DIR` to a writable
+  directory and every `cache/...` path in this file (seat, card DB, plans, `live/`) lives there instead.
 - Don't post attacks or public chat on the user's behalf beyond game moves; the game itself is fine to play.
 - Games expire after inactivity (`expectedPurgeTimeMs`).

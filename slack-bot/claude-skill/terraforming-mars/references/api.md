@@ -70,9 +70,9 @@ Where the inputs come from:
 
 ### 2.3 `POST /player/input?id=pXXXX` — submit a response (verified live)
 - Headers: `Content-Type: application/json`.
-- Body: one `InputResponse` JSON object (section 4). You may add an optional `"runId"` field. The real client sends `{runId: playerView.runId, ...response}`.
-  - If `runId` is present and doesn't match the server's current run id (the server restarted), you get 400 with `id: "invalid-run-id"`. Re-fetch and resend.
-  - Leaving `runId` out is fine. The server deletes it before validating.
+- Body: one `InputResponse` JSON object (section 4) plus a **required** `"requestId"` field. The real client sends `{requestId: playerView.requestId, ...response}`.
+  - `requestId` names the prompt being answered; the server issues a new one with every prompt. A missing or stale id gives 400 with `id: "#invalid-request-id"` and message `This page is out of date. Click OK to refresh it.` (upstream `5a7c6934f`, live on the Heroku server by 2026-11-17). Re-fetch `/api/player`, decide again, resend.
+  - `runId` no longer exists upstream (`9dac22134`). Older self-hosted servers may still send it and accept inputs without a `requestId`.
 - Success: `200` with the **new `PlayerViewModel`**. There is no need to call `/api/player` again.
 - Failure: `400` with `Content-Type: application/json` and body `AppErrorResponse`, `{"id"?: string, "message": string}`. Examples seen live:
   - `{"message":"Incorrect options provided"}`
@@ -81,7 +81,7 @@ Where the inputs come from:
   - Other messages: `"Space not available"`, `"Too many cards selected"`, `"Did not spend enough to pay for card"`, `"You do not have that many resources"`, `"Not waiting for anything"`, `"Unknown card name X"`.
 - **A failed input is rolled back.** `Player.process` restores `waitingFor` on any exception, so after a 400 you can simply retry with a corrected response.
 - **Undo is also sent here** (see 2.6). The response to undo is the restored `PlayerViewModel`.
-- Validation is strict about keys. Most `is…Response` guards use `matches(response, fields)`, which requires **exactly** those keys, with no extra keys and none missing (`runId` is stripped first).
+- Validation is strict about keys. Most `is…Response` guards use `matches(response, fields)`, which requires **exactly** those keys, with no extra keys and none missing (`requestId` is stripped first).
 
 ### 2.4 `GET /api/game?id=gXXXX` → `SimpleGameModel`
 ```ts
@@ -126,7 +126,7 @@ interface ViewModel {
   id: ParticipantId;
   color: Color;                        // (not seen in the live payload; use thisPlayer.color)
   thisPlayer: PublicPlayerModel | undefined;
-  runId: string;
+  requestId: string | undefined;       // id of the current prompt; echo it back in /player/input
 }
 interface PlayerViewModel extends ViewModel {
   autopass: boolean;
@@ -484,11 +484,11 @@ const TM = {
       await new Promise((res) => setTimeout(res, 2000));
     }
   },
-  async send(response, runId) {
+  async send(response, requestId) {
     const r = await fetch(`/player/input?id=${PID}`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(runId ? {runId, ...response} : response),
+      body: JSON.stringify({requestId, ...response}),
     });
     const body = await r.json();
     if (!r.ok) return {ok: false, status: r.status, error: body.message, id: body.id};
@@ -562,7 +562,7 @@ const choosePlayer = (color) => ({type: 'player', player: color});
   if (!v.waitingFor) { await TM.poll(v); v = await TM.state(); }
   console.log(summarize(v));
   // ...LLM decides...  e.g.
-  const res = await TM.send(pass(v.waitingFor), v.runId);
+  const res = await TM.send(pass(v.waitingFor), v.requestId);
   if (!res.ok) console.warn('rejected:', res.error);     // state is unchanged; retry with a fix
   else v = res.view;
 })();
