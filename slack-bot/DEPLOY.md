@@ -51,6 +51,8 @@ default checkboxes on for **Production**, **Preview**, and **Development**.
 | `SLACK_LOG_CHANNEL` | `C0123ABCD` or `tm-bot` | Optional. Shared operational log: every game created and every failure, with the TM server's error body. Invite the bot to the channel first (`/invite @terraforming-mars`), then redeploy. |
 | `CLAUDE_OPERATOR_SLACK_USER_ID` | `U0123ABCD` | Optional. Slack user id (or set `CLAUDE_OPERATOR` to a name) of the person who runs Claude Code; receives Claude's player link when a game includes Claude. Defaults to `DEFAULT_CLAUDE_OPERATOR` in `src/claude.ts` ("Simas Glinskis", looked up by name), then the host. Find it in Slack via the person's profile -> **...** -> **Copy member ID**. |
 | `CLAUDE_PLAYER_NAME` | `Claude` | Optional. Player name Claude is seated under. Defaults to `Claude`. |
+| `CLAUDE_RUNNER_URL` | `https://machine.tailnet.ts.net` | Optional. Public origin of a [Claude runner](./claude-runner/README.md). With `CLAUDE_RUNNER_SECRET`, Claude joins games on its own. |
+| `CLAUDE_RUNNER_SECRET` | long hex string | Optional. The runner's shared secret (`~/tm-claude/runner-secret` on the runner's machine). Mark it Sensitive. |
 
 ## Step 3 - Deploy
 

@@ -46,6 +46,11 @@ export type LogEntry =
     responseBody?: string;
   }
   | {
+    /** A report from the Claude runner about a seat it took; already formatted. */
+    kind: 'claude_seat';
+    text: string;
+  }
+  | {
     kind: 'modal_failed';
     hostUserId: string;
     channelId: string;
@@ -94,6 +99,8 @@ export function formatLogEntry(entry: LogEntry, ctx: LogContext = {}): string {
       .join(', ');
     lines.push(`:white_check_mark: *${escapeMrkdwn(entry.gameName)}* created by <@${entry.hostUserId}> — ${entry.players.length} seats: ${seats}`);
     lines.push(`<${entry.hostDashboardUrl}|host dashboard>`);
+  } else if (entry.kind === 'claude_seat') {
+    lines.push(entry.text);
   } else if (entry.kind === 'modal_failed') {
     lines.push(`:x: /tm-newgame form failed to open for <@${entry.hostUserId}> in <#${entry.channelId}>`);
     lines.push(`*Slack error:* \`${escapeMrkdwn(entry.errorCode)}\``);

@@ -10,9 +10,11 @@
  *    - POST it to /api/creategame.
  *    - DM each player their link, then DM the host a summary. The summary
  *      carries a "New game, same settings" button holding this submission.
- *    - If Claude plays, its link goes to the Claude operator
- *      (env id/name, else DEFAULT_CLAUDE_OPERATOR resolved by name, else
- *      the host) instead.
+ *    - If Claude plays and a runner is configured (src/runner.ts), its link
+ *      goes to the runner, which plays the seat unattended. Without a
+ *      runner, or if the runner declines, the link goes to the Claude
+ *      operator instead (env id/name, else DEFAULT_CLAUDE_OPERATOR resolved
+ *      by name, else the host).
  *    - On failure, DM the host the error.
  *    - Either way, post a line to SLACK_LOG_CHANNEL if configured.
  */
@@ -52,6 +54,7 @@ import {
 } from '../slack/notify.js';
 import {claudePlayerName, resolveClaudeOperator} from '../claude.js';
 import {postLog} from '../slack/log.js';
+import {dispatchClaudeSeat, runnerConfig} from '../runner.js';
 
 export {VIEW_CALLBACK_ID} from '../views/newGameView.js';
 
@@ -99,7 +102,15 @@ export async function onViewSubmission(
           game.players.map(async (player) => {
             const url = playerUrl(base, player.id);
             if (claude !== undefined && player.color === claude.color) {
-              return dmClaudeSeat(
+              const runner = runnerConfig();
+              let runnerNote: string | undefined;
+              if (runner !== undefined) {
+                const sent = await dispatchClaudeSeat(runner, {playerUrl: url, gameName: game.name, hostUserId: meta.hostUserId});
+                if (sent.ok) return {slackUserId: claude.operatorUserId, ok: true, color: player.color, viaRunner: true};
+                logger.warn('[slack-bot] Claude runner did not take the seat, falling back to the operator DM', {reason: sent.reason});
+                runnerNote = sent.reason;
+              }
+              const dm = await dmClaudeSeat(
                 client,
                 claude.operatorUserId,
                 player.name,
@@ -108,6 +119,7 @@ export async function onViewSubmission(
                 meta.hostUserId,
                 player.color,
               );
+              return runnerNote !== undefined ? {...dm, runnerNote} : dm;
             }
             const slackUserId = slackUserIdByColor[player.color] ?? '';
             const result = await dmPlayerLink(client, slackUserId, player.name, game.name, url);

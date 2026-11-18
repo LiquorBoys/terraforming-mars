@@ -45,6 +45,7 @@ Slack and Vercel each need information the other produces:
 | `SLACK_LOG_CHANNEL` | no | Channel id or name for the shared operational log (every game created, every failure with the TM server's error body and Vercel request id). Invite the bot to the channel first: `/invite @terraforming-mars`. Unset disables it. |
 | `CLAUDE_OPERATOR_SLACK_USER_ID` / `CLAUDE_OPERATOR` | no | Who runs Claude Code and receives Claude's link: a Slack user id (`U...`) or a name (matched against real/display name via `users.list`). Defaults to the hardcoded `DEFAULT_CLAUDE_OPERATOR` in `src/claude.ts` (currently "Simas Glinskis"), then to the host who ran `/tm-newgame` if no one matches. |
 | `CLAUDE_PLAYER_NAME` | no | Player name Claude is seated under. Defaults to `Claude`. |
+| `CLAUDE_RUNNER_URL` / `CLAUDE_RUNNER_SECRET` | no | Origin and shared secret of a [Claude runner](./claude-runner/README.md). When both are set, Claude's link goes to the runner, which plays the seat unattended; the operator DM becomes the fallback for when the runner is down or full. |
 
 ## Local development
 
@@ -66,10 +67,14 @@ See [DEPLOY.md](./DEPLOY.md) "Local development" for the full ngrok recipe.
 ```
 slack-bot/
 ├── api/slack/events.ts          # Vercel function entry
+├── api/claude/status.ts         # Reports from the Claude runner (seat ended / failed)
+├── claude-runner/               # Runs on the machine that plays Claude's seat (not deployed to Vercel)
+├── claude-skill/                # The Claude Code skill that plays the game
 ├── public/index.html            # Landing page at the root URL (also satisfies Vercel's default outputDirectory)
 ├── src/
 │   ├── app.ts                   # Bolt App + Vercel receiver (lazy init)
 │   ├── claude.ts                # "Claude plays" seat: env config, marker line, command
+│   ├── runner.ts                # Signed hand-off of Claude's seat to a runner
 │   ├── receiver.ts              # Custom Web-standards Receiver
 │   ├── views/
 │   │   ├── newGameView.ts       # Block Kit modal builder
@@ -148,6 +153,25 @@ Paste into Claude Code: /terraforming-mars https://terraforming-mars.herokuapp.c
 - The rematch button remembers the Claude seat (and Claude as first player).
 
 No extra Slack scopes are needed - it is just one more `chat:write` DM.
+
+### Claude joining on its own
+
+With `CLAUDE_RUNNER_URL` and `CLAUDE_RUNNER_SECRET` set, nobody has to paste
+anything. The bot POSTs Claude's link to the [runner](./claude-runner/README.md),
+which starts Claude Code on the skill and keeps it in the game.
+
+- The host's summary shows Claude's row as
+  `:robot_face: *Claude* — joining on its own`.
+- If the runner is unreachable, already at its limit of games, or over its
+  daily limit, the bot falls back to the operator DM above and the host's
+  summary says why Claude could not join on its own.
+- If Claude stops playing mid-game (budget reached, repeated errors, nothing
+  asked of it for hours), the runner reports it and the bot DMs the host the
+  reason and Claude's seat link, so a person can take the seat over.
+- When the game ends, the host is DMed where Claude finished.
+
+Requests between the bot and the runner are signed with the shared secret and
+expire after five minutes; see `src/runner.ts`.
 
 ## Playing again with the same settings
 

@@ -26,6 +26,10 @@ export interface PlayerDmResult {
    * two DMs (their own link plus Claude's, when they run Claude Code).
    */
   color?: PlayerColor;
+  /** Claude's seat only: the runner took it, so nobody was DMed. */
+  viaRunner?: boolean;
+  /** Claude's seat only: why the runner did not take it, when it was tried first. */
+  runnerNote?: string;
 }
 
 export interface HostSummaryPlayer {
@@ -36,6 +40,10 @@ export interface HostSummaryPlayer {
   url: string;
   dmFailed: boolean;
   isClaude?: boolean;
+  /** Claude's seat was handed to the runner and is being played unattended. */
+  claudeAuto?: boolean;
+  /** Why the runner did not take Claude's seat, when it fell back to the operator. */
+  claudeNote?: string;
 }
 
 /** Claude's seat, for matching the returned game players back up. */
@@ -274,10 +282,22 @@ export async function lookupDisplayName(
 
 function playerSummaryBlock(player: HostSummaryPlayer): KnownBlock {
   const dot = colorEmoji(player.color);
+  if (player.isClaude === true && player.claudeAuto === true) {
+    return {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `${dot} :robot_face: *${escapeMrkdwn(player.name)}* — joining on its own (<${player.url}|player link>)`,
+      },
+    };
+  }
   if (player.isClaude === true) {
-    const status = player.dmFailed ?
+    const note = player.claudeNote !== undefined ?
+      `_Claude could not join on its own: ${escapeMrkdwn(player.claudeNote)}_ — ` :
+      '';
+    const status = note + (player.dmFailed ?
       `:warning: _DM to <@${player.slackUserId}> failed - give Claude this link manually: ${player.url}_` :
-      `link sent to <@${player.slackUserId}> (<${player.url}|player link>)`;
+      `link sent to <@${player.slackUserId}> (<${player.url}|player link>)`);
     return {
       type: 'section',
       text: {
@@ -341,6 +361,7 @@ export function buildHostSummaryFromGameModel(
     players: players.map((p) => {
       const isClaude = claude !== undefined && p.color === claude.color;
       const slackUserId = isClaude ? claude.operatorUserId : slackUserIdByColor[p.color] ?? '?';
+      const result = isClaude ? dmResults.find((r) => r.color === p.color) : undefined;
       return {
         slackUserId,
         name: p.name,
@@ -348,6 +369,8 @@ export function buildHostSummaryFromGameModel(
         url: `${baseUrl}/player?id=${encodeURIComponent(p.id)}`,
         dmFailed: dmFailed(p.color, slackUserId),
         ...(isClaude ? {isClaude: true} : {}),
+        ...(result?.viaRunner === true ? {claudeAuto: true} : {}),
+        ...(result?.runnerNote !== undefined ? {claudeNote: result.runnerNote} : {}),
       };
     }),
   };
