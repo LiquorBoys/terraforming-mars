@@ -60,10 +60,10 @@ commit_lessons() {
 # which is what makes a three-way merge possible.
 refresh() {
   local out f
+  lock
   if [ -d "$REPO/.git" ]; then
     out=$(git -C "$REPO" pull -q --ff-only origin "$BASE_BRANCH" 2>&1) || say "skill update failed, playing with the checkout as it is: $out"
   else say "no git checkout at $REPO; using the skill as it is"; fi
-  lock
   [ -d "$LEAGUE/.git" ] && { out=$(lgit pull -q --rebase 2>&1) || say "league update failed, continuing with the local copy: $out"; }
   mkdir -p "$LEAGUE/lessons/.base"
   for f in lessons.md lessons-log.md; do
@@ -106,6 +106,7 @@ if [ ! -f session_id ]; then
   mkdir -p plugin/.claude-plugin plugin/skills
   echo '{"name": "tm", "description": "Terraforming Mars player skill", "version": "0.0.1"}' > plugin/.claude-plugin/plugin.json
   cp -R "$SKILL_SRC" plugin/skills/terraforming-mars
+  chmod +x plugin/skills/terraforming-mars/scripts/*.sh
   for f in lessons.md lessons-log.md; do cp "$LEAGUE/lessons/$f" "lessons/$f"; cp "$LEAGUE/lessons/$f" "lessons-seed/$f"; done
   cat > settings.json <<EOF
 {
