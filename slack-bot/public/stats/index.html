@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terraforming Mars league</title>
+<style>
+  /* Colour roles from the data-viz palette; light and dark are each chosen, not flipped. */
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6; --series-2: #eb6834; --context: #c3c2b7;
+    --div-pos: #2a78d6; --div-neg: #e34948; --track: #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface-1: #1a1a19;
+      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5; --series-2: #d95926; --context: #52514e;
+      --div-pos: #3987e5; --div-neg: #e66767; --track: #2c2c2a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body.viz-root { background: var(--page); color: var(--text-primary); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 28px 20px 64px; }
+  h1 { font-size: 22px; font-weight: 650; margin: 0 0 2px; }
+  h2 { font-size: 16px; font-weight: 650; margin: 0 0 2px; }
+  .sub { color: var(--text-secondary); margin: 0 0 14px; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-top: 16px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 16px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .label { color: var(--text-secondary); font-size: 12px; }
+  .tile .value { font-size: 26px; font-weight: 650; line-height: 1.2; }
+  .tile .note { color: var(--text-muted); font-size: 12px; }
+  table { border-collapse: collapse; width: 100%; }
+  th { text-align: left; font-weight: 500; font-size: 12px; color: var(--text-secondary); padding: 6px 10px 6px 0; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+  td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th.num { text-align: right; }
+  .muted { color: var(--text-muted); }
+  .thin td { color: var(--text-muted); }
+  .key { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; vertical-align: baseline; }
+  .scroll { overflow-x: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; color: var(--text-secondary); font-size: 12px; margin: 4px 0 8px; }
+  .legend .line { display: inline-block; width: 16px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+  svg { display: block; max-width: 100%; }
+  svg text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  svg text.direct { fill: var(--text-primary); font-size: 12px; }
+  .lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; }
+  .lists .card { margin-top: 16px; }
+  .rows { display: grid; grid-template-columns: minmax(70px, 9.5em) 1fr max-content; gap: 8px 10px; align-items: center; margin-top: 10px; }
+  .rows .bar { height: 12px; background: var(--track); border-radius: 0 4px 4px 0; position: relative; }
+  .rows .bar > span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--series-1); border-radius: 0 4px 4px 0; }
+  .rows .row { display: contents; }
+  .rows .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.nowrap { white-space: nowrap; }
+  .rows .row:hover .bar > span, .rows .row:focus-within .bar > span { filter: brightness(1.15); }
+  .div { position: relative; height: 12px; min-width: 100px; }
+  .div::before { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; border-left: 1px solid var(--axis); }
+  .div > span { position: absolute; top: 0; bottom: 0; }
+  .div > span.pos { left: 50%; background: var(--div-pos); border-radius: 0 4px 4px 0; }
+  .div > span.neg { right: 50%; background: var(--div-neg); border-radius: 4px 0 0 4px; }
+  #tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 18px rgba(0,0,0,0.14); max-width: 280px; display: none; }
+  #tip .v { font-weight: 650; font-variant-numeric: tabular-nums; }
+  #tip .k { color: var(--text-secondary); }
+  #tip .ln { display: inline-block; width: 12px; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+  details { margin-top: 10px; color: var(--text-secondary); }
+  details summary { cursor: pointer; font-size: 12px; }
+  .players span { white-space: nowrap; }
+  a { color: inherit; }
+  [tabindex]:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+</style>
+</head>
+<body class="viz-root">
+<main>
+  <h1>Terraforming Mars league</h1>
+  <p class="sub" id="lede">Loading games…</p>
+  <div id="app"></div>
+</main>
+<div id="tip" role="status"></div>
+<script type="module" src="./stats.js"></script>
+</body>
+</html>

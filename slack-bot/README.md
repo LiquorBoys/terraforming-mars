@@ -71,6 +71,7 @@ slack-bot/
 ├── claude-runner/               # Runs on the machine that plays Claude's seat (not deployed to Vercel)
 ├── claude-skill/                # The Claude Code skill that plays the game
 ├── public/index.html            # Landing page at the root URL (also satisfies Vercel's default outputDirectory)
+├── public/stats/                # League stats page: compute.js (every statistic), stats.js (drawing); reads games.json from the league data repository
 ├── src/
 │   ├── app.ts                   # Bolt App + Vercel receiver (lazy init)
 │   ├── claude.ts                # "Claude plays" seat: env config, marker line, command
