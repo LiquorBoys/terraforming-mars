@@ -160,7 +160,8 @@ state() {
     }).catch((e) => console.log("error:" + ((e.cause && e.cause.code) || e.message)));' "$BASE" "$PLAYER"
 }
 
-# run <first|resume> <prompt>; sets RUN_RC, RUN_SECS, RUN_RESULT (the result event's subtype) and RUN_ERR
+# run <first|resume> <prompt>; sets RUN_RC, RUN_SECS, RUN_RESULT (the result event's subtype), RUN_ERR
+# and RUN_RESET (when the usage allowance comes back, as epoch seconds, if the run hit it)
 run() {
   n=$((n + 1)); local tag; tag=$(printf 'run-%03d' "$n")
   local sess=(--resume "$SID"); [ "$1" = first ] && sess=(--session-id "$SID")
@@ -205,9 +206,17 @@ run() {
     for (const l of require("fs").readFileSync(process.argv[1], "utf8").split("\n")) {
       if (!l) continue; try { const j = JSON.parse(l); if (j.type === "result") last = j; } catch {}
     }
-    if (!last) { console.log("none\t\t"); process.exit(0); }
-    console.log([last.subtype, last.total_cost_usd ?? "", last.subtype === "success" ? "" : String(last.result ?? "").replace(/\s+/g, " ").slice(0, 300)].join("\t"));' "logs/$tag.jsonl")
-  RUN_RESULT=$(printf '%s' "$summary" | cut -f1); local cost; cost=$(printf '%s' "$summary" | cut -f2); RUN_ERR=$(printf '%s' "$summary" | cut -f3)
+    // When the usage allowance is spent, Claude Code says when it comes back.
+    let reset = "";
+    for (const l of require("fs").readFileSync(process.argv[1], "utf8").split("\n")) {
+      if (!l.includes("rate_limit_event")) continue;
+      try { const r = JSON.parse(l).rate_limit_info; if (r && r.status === "rejected" && r.resetsAt) reset = r.resetsAt; } catch {}
+    }
+    if (!last) { console.log(["none", "", "", reset].join("\t")); process.exit(0); }
+    // A failed run can still carry subtype "success"; is_error is what says it failed.
+    const failed = last.is_error || last.subtype !== "success";
+    console.log([last.subtype, last.total_cost_usd ?? "", failed ? String(last.result ?? "").replace(/\s+/g, " ").slice(0, 300) : "", reset].join("\t"));' "logs/$tag.jsonl")
+  RUN_RESULT=$(printf '%s' "$summary" | cut -f1); local cost; cost=$(printf '%s' "$summary" | cut -f2); RUN_ERR=$(printf '%s' "$summary" | cut -f3); RUN_RESET=$(printf '%s' "$summary" | cut -f4)
   [ -n "$cost" ] && echo "$cost" > cost
   [ -z "$RUN_ERR" ] && [ "$RUN_RC" -ne 0 ] && RUN_ERR=$(tail -c 300 "logs/$tag.err" | tr '\n' ' ')
   say "$tag end rc=$RUN_RC secs=$RUN_SECS result=$RUN_RESULT total_cost_usd=${cost:-unknown} ${RUN_ERR:+error: $RUN_ERR}"
@@ -217,20 +226,31 @@ say "seat ${PLAYER:0:5}… model=$MODEL budget=$BUDGET session=$SID first=$FIRST
 if [ "$FIRST" -eq 1 ]; then
   run first "/tm:terraforming-mars $URL play"
 else
-  RUN_RC=0; RUN_SECS=999; RUN_RESULT=resumed; RUN_ERR=
+  RUN_RC=0; RUN_SECS=999; RUN_RESULT=resumed; RUN_ERR=; RUN_RESET=
 fi
 
-fails=0; final_sent=0
+fails=0; final_sent=0; limit_told=0
 while :; do
   case "$RUN_RESULT" in *budget*) finish failed "the per-game budget of \$$BUDGET was reached" ;; esac
   # A run that failed, or ended almost at once, is backed off so a rate limit or a broken
   # install cannot spin the loop.
-  if [ "$RUN_RC" -ne 0 ] || [ "$RUN_SECS" -lt 20 ]; then
+  if [ -n "$RUN_RESET" ] && [ "$RUN_RC" -ne 0 ]; then
+    # Out of usage is not a fault to retry every two minutes and then give up on: Claude Code
+    # says when the allowance returns, so tell the host once, wait until then, and carry on.
+    back=$(date -r "$RUN_RESET" '+%H:%M')
+    if [ "$limit_told" -eq 0 ]; then
+      limit_told=1
+      say "usage allowance spent; waiting until $back"
+      node "$HERE/notify.mjs" "$GAME" failed "it has used up its usage allowance until $back and will pick the game up again then if it is still going" >> "$LOG" 2>&1
+    fi
+    pause=$(( RUN_RESET - $(date +%s) + 90 )); [ "$pause" -lt 120 ] && pause=120
+    sleep "$pause"
+  elif [ "$RUN_RC" -ne 0 ] || [ "$RUN_SECS" -lt 20 ]; then
     fails=$((fails + 1))
     [ "$fails" -ge 20 ] && finish failed "Claude Code failed 20 times in a row. Last error: ${RUN_ERR:-none reported}"
     sleep 120
   else
-    fails=0
+    fails=0; limit_told=0
   fi
   errs=0; idle_since=$(date +%s)
   while :; do
