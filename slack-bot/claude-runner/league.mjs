@@ -13,6 +13,44 @@ export function personKey(salt, slackUserId) {
 
 const VP_PARTS = ['terraformRating', 'milestones', 'awards', 'greenery', 'city', 'victoryPoints'];
 
+// Every Mars board is the same 61-hex grid: ids 03..63 in rows of 5,6,7,8,9,8,7,6,5 (the same
+// geometry the skill's tm.js uses). The API gives no coordinates, so adjacency comes from the id.
+const ROWS = [5, 6, 7, 8, 9, 8, 7, 6, 5];
+const XY = {}; const AT = {};
+{ let id = 3; ROWS.forEach((n, y) => { for (let p = 0; p < n; p++) { const k = String(id++).padStart(2, '0'); XY[k] = [p + Math.abs(4 - y), y]; AT[XY[k].join(',')] = k; } }); }
+export function neighbours(id) {
+  if (!XY[id]) return [];
+  const [x, y] = XY[id];
+  const diagonal = y < 4 ? [[x, y - 1], [x + 1, y - 1], [x - 1, y + 1], [x, y + 1]] :
+    y === 4 ? [[x, y - 1], [x + 1, y - 1], [x, y + 1], [x + 1, y + 1]] :
+      [[x - 1, y - 1], [x, y - 1], [x, y + 1], [x + 1, y + 1]];
+  return [[x - 1, y], [x + 1, y], ...diagonal].map((c) => AT[c.join(',')]).filter(Boolean);
+}
+
+/**
+ * Where the Mars Nomads ended the game, and whether they were boxed in: no adjacent space they
+ * could still move to (the card moves them to an adjacent, non-reserved, empty land area).
+ * sealedBy is whoever placed the last tile next to them. Undefined when nobody played the card.
+ */
+export function nomadsAtEnd(spec, logsByGeneration = []) {
+  const spaces = spec.game.spaces ?? [];
+  const at = spaces.find((s) => s.nomads);
+  if (!at) return undefined;
+  const open = (s) => ['land', 'cove', 'deflection'].includes(s.spaceType) && s.tileType === undefined &&
+    s.color === undefined && s.cube === undefined && s.highlight !== 'noctis';
+  const around = neighbours(at.id);
+  const boxedIn = !around.some((id) => { const s = spaces.find((x) => x.id === id); return s && open(s); });
+  const owner = spec.players.find((p) => p.tableau.some((c) => c.name === 'Mars Nomads'))?.color ?? null;
+  let sealedBy = null;
+  if (boxedIn) {
+    for (const m of logsByGeneration.flat()) {
+      const where = m.data?.find((d) => d.type === 13)?.value; // 13 is a space id in the game log
+      if (where !== undefined && around.includes(String(where)) && m.data[0]?.type === 2) sealedBy = m.data[0].value;
+    }
+  }
+  return {space: at.id, owner, boxedIn, sealedBy};
+}
+
 /**
  * A player's corporations. The tableau lists cards in the order they were played and does not say
  * which are corporations, so: the first one (two in the two-corporations variant), plus the card
@@ -30,7 +68,7 @@ export function corporationsOf(tableau, twoCorpsVariant) {
  * meta: {gameId, name, createdAt, seed, players: [{color, name, key}]} as stored when the game was created.
  * spec: the /api/spectator response of the finished game.
  */
-export function buildSummary(meta, spec, endedAt) {
+export function buildSummary(meta, spec, endedAt, logsByGeneration = []) {
   const g = spec.game;
   const players = spec.players.map((p) => {
     const corps = corporationsOf(p.tableau, g.gameOptions.twoCorpsVariant);
@@ -48,6 +86,9 @@ export function buildSummary(meta, spec, endedAt) {
       vpByGeneration: p.victoryPointsByGeneration,
       tr: p.terraformRating,
       megacredits: p.megacredits,
+      megacreditProduction: p.megacreditProduction,
+      // Every card in the tableau, in the order played: achievements and future stats read these.
+      cards: p.tableau.map((c) => c.name),
       // The final state is read after the last production phase, so the stock a player actually
       // left unspent is what is here minus one round of production.
       steel: p.steel, steelValue: p.steelValue, steelProduction: p.steelProduction,
@@ -77,6 +118,7 @@ export function buildSummary(meta, spec, endedAt) {
     players,
     awards: g.awards.filter((a) => a.color).map((a) => ({name: a.name, fundedBy: a.color, scores: a.scores})),
     milestones: g.milestones.filter((m) => m.color).map((m) => ({name: m.name, claimedBy: m.color})),
+    ...(nomadsAtEnd(spec, logsByGeneration) ? {nomads: nomadsAtEnd(spec, logsByGeneration)} : {}),
   };
 }
 

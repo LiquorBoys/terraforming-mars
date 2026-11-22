@@ -209,6 +209,21 @@ function sillyCards(league) {
     rankedList('On the clock', 'Seconds of their own clock per action taken.', clock));
 }
 
+function achievementsCard(league) {
+  const rows = league.achievements.map((a) => {
+    const who = a.holders.length === 0 ?
+      [el('span', {class: 'muted', text: 'Nobody yet'})] :
+      a.holders.flatMap((h, i) => [i ? ', ' : '', withTip(el('span', {text: h.count > 1 ? `${h.name} ×${h.count}` : h.name}), a.name,
+        [{value: `${h.count}`, label: h.count === 1 ? 'time' : 'times'}, {value: day(h.lastDate), label: `most recently, in ${h.lastGame}`}])]);
+    return el('tr', {class: a.holders.length === 0 ? 'thin' : undefined}, el('td', {class: 'nowrap', text: a.name}), el('td', {text: a.text}), el('td', {}, ...who));
+  });
+  return el('section', {class: 'card'},
+    el('h2', {text: 'Achievements'}),
+    el('div', {class: 'scroll'}, el('table', {},
+      el('thead', {}, el('tr', {}, ...['Achievement', 'How', 'Earned by'].map((t) => el('th', {text: t})))),
+      el('tbody', {}, rows))));
+}
+
 function gamesCard(league) {
   const rows = [...league.games].reverse().map((g) => el('tr', {},
     el('td', {class: 'num muted', text: g.index}),
@@ -250,6 +265,6 @@ async function main() {
       tile('Players', fmt(league.players.length)),
       tile('Top rating', fmt(Math.round(leader.rating)), leader.name),
       tile('Generations per game', fmt(gens, 1))),
-    ratingsCard(league), claudeChart(league), corporationsCard(league), sillyCards(league), gamesCard(league));
+    ratingsCard(league), claudeChart(league), corporationsCard(league), sillyCards(league), achievementsCard(league), gamesCard(league));
 }
 main();

@@ -18,7 +18,7 @@ for (const f of fs.readdirSync(path.join(dir, 'games')).filter((x) => x.endsWith
   // Everything the collector was told when the game was created is carried in the old summary.
   const meta = {gameId: old.id, name: old.name, createdAt: old.createdAt, seed: old.seed,
     players: old.players.map((p) => ({color: p.color, name: p.name, key: p.key, ...(p.claudeModel ? {claudeModel: p.claudeModel} : {})}))};
-  full.summary = buildSummary(meta, full.final, old.endedAt);
+  full.summary = buildSummary(meta, full.final, old.endedAt, full.log);
   fs.writeFileSync(file, zlib.gzipSync(JSON.stringify(full)));
   all.push(full.summary);
   console.log(`${old.id} ${old.name}: ${full.summary.players.map((p) => `${p.name} [${p.corps.join(' + ')}]`).join(', ')}`);

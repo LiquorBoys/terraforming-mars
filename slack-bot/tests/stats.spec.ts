@@ -84,6 +84,39 @@ describe('corporations', () => {
   });
 });
 
+describe('achievements', () => {
+  const holders = (league: unknown, id: string) => (league as {achievements: Array<{id: string; holders: Array<{name: string; count: number}>}>})
+    .achievements.find((a) => a.id === id)!.holders.map((h) => `${h.name}×${h.count}`);
+
+  it('gives Tycoon for 50 M€ production and counts repeats', async () => {
+    const {computeLeague} = await load();
+    const league = computeLeague([
+      game(1, [p('a', 1, {megacreditProduction: 50}), p('b', 2, {megacreditProduction: 49})]),
+      game(2, [p('a', 1, {megacreditProduction: 61}), p('b', 2, {megacreditProduction: 12})]),
+    ]);
+    expect(holders(league, 'tycoon')).toEqual(['a×2']);
+  });
+
+  it('wants every card of a set, counting an expansion card only when that expansion was in the game', async () => {
+    const {computeLeague} = await load();
+    const core = ['Research Outpost', 'Earth Catapult', 'Anti-Gravity Technology'];
+    const withColonies = {...game(1, [p('a', 1, {cards: core}), p('b', 2, {cards: [...core, 'Sky Docks']})]), expansions: ['colonies', 'promo']};
+    const without = {...game(2, [p('a', 1, {cards: core}), p('b', 2, {cards: ['Advanced Alloys']})]), expansions: []};
+    const league = computeLeague([withColonies, without] as never);
+    expect(holders(league, 'bulk-buyer').sort()).toEqual(['a×1', 'b×1']);
+    // Without the promo set, Advanced Alloys alone is every metal card there is.
+    expect(holders(league, 'metallurgist')).toEqual(['b×1']);
+  });
+
+  it("gives Fence builder to whoever sealed in someone else's Nomads, not to their owner", async () => {
+    const {computeLeague} = await load();
+    const sealed = {...game(1, [p('a', 1), p('b', 2)]), nomads: {space: '20', owner: 'b', boxedIn: true, sealedBy: 'a'}};
+    const ownGoal = {...game(2, [p('a', 1), p('b', 2)]), nomads: {space: '20', owner: 'b', boxedIn: true, sealedBy: 'b'}};
+    const free = {...game(3, [p('a', 1), p('b', 2)]), nomads: {space: '20', owner: 'b', boxedIn: false, sealedBy: null}};
+    expect(holders(computeLeague([sealed, ownGoal, free] as never), 'fence-builder')).toEqual(['a×1']);
+  });
+});
+
 describe('the silly ones', () => {
   it('values leftover steel and titanium at what they were worth to that player', async () => {
     const {computeLeague} = await load();

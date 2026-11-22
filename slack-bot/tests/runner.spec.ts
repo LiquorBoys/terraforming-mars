@@ -155,6 +155,32 @@ describe('league records (claude-runner/league.mjs)', () => {
     expect(corporationsOf(t('Helion', 'Merger'), false)).toEqual(['Helion']);
   });
 
+  it('works out whether the Mars Nomads ended boxed in, and who sealed them', async () => {
+    const path = '../claude-runner/league.mjs';
+    const {neighbours, nomadsAtEnd} = await import(/* @vite-ignore */ path) as {
+      neighbours: (id: string) => Array<string>;
+      nomadsAtEnd: (spec: unknown, logs: unknown) => {space: string; owner: string | null; boxedIn: boolean; sealedBy: string | null} | undefined;
+    };
+    // Corner of the top row and the centre space, worked out by hand from the grid layout.
+    expect(neighbours('03').sort()).toEqual(['04', '08', '09']);
+    expect(neighbours('33').sort()).toEqual(['24', '25', '32', '34', '41', '42']);
+
+    const around = neighbours('33');
+    const board = (openId?: string) => [
+      {id: '33', spaceType: 'land', bonus: [], nomads: true},
+      ...around.map((id) => (id === openId ? {id, spaceType: 'land', bonus: []} :
+        id === '24' ? {id, spaceType: 'ocean', bonus: []} : // an empty ocean space is reserved, so it does not free them
+          {id, spaceType: 'land', bonus: [], tileType: 2, color: 'red'})),
+    ];
+    const players = [{color: 'blue', tableau: [{name: 'Helion'}, {name: 'Mars Nomads'}]}, {color: 'red', tableau: [{name: 'Ecoline'}]}];
+    const placed = (color: string, id: string) => ({message: '${0} ${1} ${2} at ${3}', data: [{type: 2, value: color}, {type: 0, value: 'placed'}, {type: 0, value: 'city tile'}, {type: 13, value: id}]});
+    const logs = [[placed('blue', '25'), placed('red', '60')], [placed('red', '42')]];
+
+    expect(nomadsAtEnd({game: {spaces: board()}, players}, logs)).toEqual({space: '33', owner: 'blue', boxedIn: true, sealedBy: 'red'});
+    expect(nomadsAtEnd({game: {spaces: board('41')}, players}, logs)).toEqual({space: '33', owner: 'blue', boxedIn: false, sealedBy: null});
+    expect(nomadsAtEnd({game: {spaces: [{id: '33', spaceType: 'land', bonus: []}]}, players}, logs)).toBeUndefined();
+  });
+
   it('keeps player ids and Slack ids out of what gets published', async () => {
     const {buildSummary, buildFull, personKey} = await load();
     const full = JSON.stringify(buildFull(buildSummary(meta, spec, 'x'), spec, [[]]));

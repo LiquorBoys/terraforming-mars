@@ -221,7 +221,7 @@ async function collect() {
         // Claude's seat is "Claude" to the table; which model played it is only recorded here.
         const model = jobs().find((j) => j.job.gameId === meta.gameId)?.job.model;
         for (const p of meta.players) if (p.claude) { p.claudeModel = model ?? 'unknown'; p.key = `claude-${p.claudeModel}`; }
-        const summary = buildSummary(meta, got.spec, got.endedAt);
+        const summary = buildSummary(meta, got.spec, got.endedAt, got.logs);
         const full = buildFull(summary, got.spec, got.logs);
         withLeagueLock(() => saveRecord(summary, full));
         fs.rmSync(file);
