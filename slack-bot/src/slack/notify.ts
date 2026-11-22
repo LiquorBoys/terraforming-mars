@@ -174,6 +174,50 @@ export async function dmClaudeSeat(
   }
 }
 
+/**
+ * Channel that gets a spectator link whenever a game is created: an id or a
+ * name, from SLACK_GAMES_CHANNEL. Undefined (unset) turns the announcement
+ * off. The bot must be a member of the channel.
+ */
+export function gamesChannel(): string | undefined {
+  const raw = process.env.SLACK_GAMES_CHANNEL?.trim();
+  return raw === undefined || raw === '' ? undefined : raw;
+}
+
+/** "A", "A and B", "A, B and C". */
+function listNames(names: ReadonlyArray<string>): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/**
+ * Announce a new game in the games channel with its spectator link, so
+ * anyone can watch. Players are named, not mentioned: nobody gets pinged.
+ * Returns undefined on success, otherwise Slack's reason; never throws.
+ */
+export async function postSpectatorLink(
+  client: WebClient,
+  channel: string,
+  gameName: string,
+  spectatorUrl: string,
+  playerNames: ReadonlyArray<string>,
+): Promise<string | undefined> {
+  const who = listNames(playerNames.map(escapeMrkdwn));
+  try {
+    await client.chat.postMessage({
+      channel,
+      text: `:ringed_planet: *${escapeMrkdwn(gameName)}* has started with ${who}. <${spectatorUrl}|Watch it>`,
+      unfurl_links: false,
+      unfurl_media: false,
+    });
+    return undefined;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[slack-bot] postSpectatorLink failed', {channel, error: message});
+    return message;
+  }
+}
+
 export async function dmHostSummary(
   client: WebClient,
   hostSlackUserId: string,

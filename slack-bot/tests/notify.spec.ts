@@ -4,6 +4,8 @@ import {
   buildHostSummaryFromGameModel,
   dmClaudeSeat,
   dmHostSummary,
+  gamesChannel,
+  postSpectatorLink,
 } from '../src/slack/notify.js';
 import {
   claudeCodeCommand,
@@ -238,5 +240,28 @@ describe('host summary with Claude', () => {
       undefined,
     );
     expect(summary.players[0]!.dmFailed).toBe(true);
+  });
+});
+
+describe('spectator link in the games channel', () => {
+  afterEach(() => { delete process.env.SLACK_GAMES_CHANNEL; });
+
+  it('is off unless SLACK_GAMES_CHANNEL is set', () => {
+    expect(gamesChannel()).toBeUndefined();
+    process.env.SLACK_GAMES_CHANNEL = ' lords ';
+    expect(gamesChannel()).toBe('lords');
+  });
+
+  it('names the players without mentioning them and links the spectator page', async () => {
+    const {client, posted} = fakeClient();
+    expect(await postSpectatorLink(client, 'lords', 'Mars <42>', 'https://tm.example/spectator?id=s1', ['Alice', 'Bob', 'Claude'])).toBeUndefined();
+    expect(posted[0]!.channel).toBe('lords');
+    expect(posted[0]!.text).toBe(':ringed_planet: *Mars &lt;42&gt;* has started with Alice, Bob and Claude. <https://tm.example/spectator?id=s1|Watch it>');
+    expect(posted[0]!.text).not.toContain('<@');
+  });
+
+  it("returns Slack's reason instead of throwing when the post fails", async () => {
+    const client = {chat: {postMessage: vi.fn(async () => { throw new Error('not_in_channel'); })}} as unknown as WebClient;
+    expect(await postSpectatorLink(client, 'lords', 'Mars-42', 'https://tm.example/spectator?id=s1', ['Alice'])).toBe('not_in_channel');
   });
 });

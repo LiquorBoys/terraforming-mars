@@ -15,6 +15,7 @@
  *      runner, or if the runner declines, the link goes to the Claude
  *      operator instead (env id/name, else DEFAULT_CLAUDE_OPERATOR resolved
  *      by name, else the host).
+ *    - Post a spectator link to SLACK_GAMES_CHANNEL, if set.
  *    - On failure, DM the host the error.
  *    - Either way, post a line to SLACK_LOG_CHANNEL if configured.
  */
@@ -48,7 +49,9 @@ import {
   dmHostError,
   dmHostSummary,
   dmPlayerLink,
+  gamesChannel,
   lookupDisplayName,
+  postSpectatorLink,
   type ClaudeSeat,
   type PlayerDmResult,
 } from '../slack/notify.js';
@@ -141,6 +144,15 @@ export async function onViewSubmission(
               {color: p.color, name: p.name, slackUserId: slackUserIdByColor[p.color] ?? ''}),
           });
           if (!noted.ok) logger.warn('[slack-bot] game not registered with the league collector', {reason: noted.reason});
+        }
+
+        // A spectator link for everyone else, in the games channel.
+        const announceIn = gamesChannel();
+        if (announceIn !== undefined && game.spectatorId !== undefined) {
+          const failed = await postSpectatorLink(client, announceIn, game.name, spectatorUrl(base, game.spectatorId), game.players.map((p) => p.name));
+          if (failed !== undefined) {
+            await postLog(client, {kind: 'note', text: `:warning: Could not post the spectator link for *${game.name}* to ${announceIn}: \`${failed}\``}, {requestId});
+          }
         }
 
         const summary = buildHostSummaryFromGameModel(

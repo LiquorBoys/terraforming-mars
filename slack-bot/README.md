@@ -43,6 +43,7 @@ Slack and Vercel each need information the other produces:
 | `SLACK_SIGNING_SECRET` | yes | From the Slack app's Basic Information page. Bolt verifies every incoming request with this. |
 | `TM_BASE_URL` | no | Defaults to `https://terraforming-mars.herokuapp.com`. Set to your own TM origin if self-hosting. |
 | `SLACK_LOG_CHANNEL` | no | Channel id or name for the shared operational log (every game created, every failure with the TM server's error body and Vercel request id). Invite the bot to the channel first: `/invite @terraforming-mars`. Unset disables it. |
+| `SLACK_GAMES_CHANNEL` | no | Channel id or name that gets a spectator link whenever a game is created (players are named, not mentioned). Invite the bot to it first. Unset disables it. |
 | `CLAUDE_OPERATOR_SLACK_USER_ID` / `CLAUDE_OPERATOR` | no | Who runs Claude Code and receives Claude's link: a Slack user id (`U...`) or a name (matched against real/display name via `users.list`). Defaults to the hardcoded `DEFAULT_CLAUDE_OPERATOR` in `src/claude.ts` (currently "Simas Glinskis"), then to the host who ran `/tm-newgame` if no one matches. |
 | `CLAUDE_PLAYER_NAME` | no | Player name Claude is seated under. Defaults to `Claude`. |
 | `CLAUDE_RUNNER_URL` / `CLAUDE_RUNNER_SECRET` | no | Origin and shared secret of a [Claude runner](./claude-runner/README.md). When both are set, Claude's link goes to the runner, which plays the seat unattended; the operator DM becomes the fallback for when the runner is down or full. |
