@@ -47,6 +47,17 @@ const ownsAll = (set, p, g) => {
   const wanted = set.filter((c) => !c.needs || (g.expansions ?? []).includes(c.needs)).map((c) => c.card);
   return Array.isArray(p.cards) && wanted.every((c) => p.cards.includes(c));
 };
+/** Funded all three awards and came last in every one: level on the lowest score, and not also level on the highest. */
+const fundedAllAndLostAll = (p, g) => {
+  const awards = g.awards ?? [];
+  if (awards.length < 3 || awards.some((a) => a.fundedBy !== p.color)) return false;
+  return awards.every((a) => {
+    const scores = (a.scores ?? []).map((s) => s.score);
+    const mine = a.scores?.find((s) => s.color === p.color)?.score;
+    return mine !== undefined && mine === Math.min(...scores) && mine < Math.max(...scores);
+  });
+};
+
 export const ACHIEVEMENTS = [
   {id: 'tycoon', name: 'Tycoon', text: 'End a game with M€ production of 50 or more.',
     earned: (p) => (p.megacreditProduction ?? 0) >= 50},
@@ -54,6 +65,7 @@ export const ACHIEVEMENTS = [
     earned: (p, g) => ownsAll(EVERY_CARD_CHEAPER, p, g)},
   {id: 'metallurgist', name: 'Metallurgist', text: 'Own every card that makes steel or titanium worth more: Advanced Alloys, Rego Plastics and Mercurian Alloys.',
     earned: (p, g) => ownsAll(METAL_WORTH_MORE, p, g)},
+  {id: 'benefactor', name: 'Benefactor', text: 'Fund all three awards and come last in every one of them.', earned: fundedAllAndLostAll},
   {id: 'fence-builder', name: 'Fence builder', text: "Place the tile that leaves someone else's Mars Nomads with nowhere to go.",
     earned: (p, g) => g.nomads?.boxedIn === true && g.nomads.sealedBy === p.color && g.nomads.owner !== p.color},
 ];

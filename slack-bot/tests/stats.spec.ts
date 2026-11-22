@@ -108,6 +108,19 @@ describe('achievements', () => {
     expect(holders(league, 'metallurgist')).toEqual(['b×1']);
   });
 
+  it('gives Benefactor only for funding all three awards and coming last in each', async () => {
+    const {computeLeague} = await load();
+    const award = (fundedBy: string, a: number, b: number, c: number) => ({name: 'x', fundedBy, scores: [{color: 'a', score: a}, {color: 'b', score: b}, {color: 'c', score: c}]});
+    const three = (awards: Array<unknown>, n: number) => game(n, [p('a', 1), p('b', 2), p('c', 3)], awards);
+    const league = computeLeague([
+      three([award('a', 0, 4, 9), award('a', 1, 1, 5), award('a', 2, 3, 3)], 1), // a funded all three, last or level-last in each
+      three([award('b', 5, 0, 9), award('b', 5, 1, 9), award('c', 5, 0, 9)], 2), // b last in all, but did not fund the third
+      three([award('c', 5, 9, 0), award('c', 5, 9, 0)], 3), // c funded both and lost both, but only two were funded
+      three([award('b', 5, 0, 9), award('b', 5, 1, 9), award('b', 5, 5, 5)], 4), // all level on the third: that is not last
+    ]);
+    expect(holders(league, 'benefactor')).toEqual(['a×1']);
+  });
+
   it("gives Fence builder to whoever sealed in someone else's Nomads, not to their owner", async () => {
     const {computeLeague} = await load();
     const sealed = {...game(1, [p('a', 1), p('b', 2)]), nomads: {space: '20', owner: 'b', boxedIn: true, sealedBy: 'a'}};
