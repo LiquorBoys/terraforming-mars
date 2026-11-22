@@ -45,6 +45,11 @@ linearly to 755k, so game 3 paid ~3× per call for games 1-2's leftovers.
    $33 at 390k average context because each draft pick, each turn and each finished watcher woke the model
    (~15-30 wakes per gen). Never `wait` during a draft (it returns at once while our pick is open); `waitturn`
    returns on ANY pending input. One background watcher at a time; no "check again" calls.
+   **Never `sleep` to wait for the table.** People are waiting on us, and with a game clock (Escape Velocity)
+   our clock runs the whole time a prompt of ours sits open. After every draft pick and every purchase, chain
+   `waitturn 120` in the same command (`tm.sh P pick "X" | tail -3; tm.sh P waitturn 120 | tail -2; tm.sh P
+   pending | head -12`): it returns the moment the next pack or prompt exists. In the 2026-11-22 game a fixed
+   `sleep 60` after each pick cost the table about 19 minutes.
 4. **Keep output small.** Use `--compact` on `brief`/`turn`. Read references once, by section (`Read` with
    offset/limit), never whole `strategy.md`/`lessons-log.md` mid-game. Never `Read` scripts during a game.
 5. **Subagents: Haiku 5.5, fresh per run.** The subagent cache lives 5 minutes and Analyst runs are 10+ min apart, so
@@ -311,7 +316,7 @@ Main menu:
 | `claim "Milestone"` / `fund "Award"` | Milestone / award (fund may be followed by a `pay` prompt) |
 | `heat` / `greenery <spaceId>` | 8 heat → temperature / 8 plants → greenery |
 | `trade "Colony" [feeText]` | Trade; feeText matches the fee option ("M€", "energy", "titanium"); default first |
-| `sell "A" "B"` / `pass` / `endturn` / `undo` | |
+| `sell "A" "B"` / `pass` / `endturn` / `undo` | `pass` refuses once if a blue-card action is still available this gen and names it; use it or `pass --force` |
 | `menu <titleRegex> ['<innerJson>']` | Any other menu option (Turmoil delegate, CEO action…) |
 
 Follow-ups (pending input is itself the prompt): `space <id>`, `pick "A" "B"` (card choice, draft, research buy,

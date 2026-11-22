@@ -142,6 +142,8 @@ Lessons: the live copies are $GAME/lessons/lessons.md and $GAME/lessons/lessons-
 
 Keep per-move narration to two or three lines; it goes to a log that is read after the game.
 
+Tempo: never put `sleep` in a command to wait for other players. After every draft pick and every purchase, chain `waitturn 120` in the same command, so you see the next prompt the moment it exists. Many games have a clock (Escape Velocity) that costs victory points once your total thinking time passes a threshold, and it runs whenever a prompt of yours is open, so answer prompts first and analyse while others are acting. Being quick means not idling; it does not mean skipping the skill's start gate or its per-turn checks (stocks, races, every card action used before passing).
+
 Stay in the game while it is active: when nothing is pending, wait with the skill's model-free watcher or autopilot as a background command. If a watcher times out twice in a row with no change in the game, end your run instead of starting a third; the runner resumes this session as soon as your seat has input, and waiting that way costs nothing.
 
 When the game ends, do the skill's end-of-game steps (final result, postmortem, lessons), then create the empty file $GAME/postmortem.done as your last action."

@@ -473,6 +473,13 @@
   };
   T.action = (card) => T.send(wrap((o) => o.type === 'card' && o.selectBlueCardAction, 'Perform an action from a played card', {type: 'card', cards: [card]}));
   T.pass = () => T.send(wrap((o) => o.type === 'option' && /^pass/i.test(t(o)), 'Pass', {type: 'option'}));
+  // Blue-card actions the action menu still offers: what passing now would leave unused this generation.
+  T.unusedActions = () => {
+    const wf = top();
+    if (wf.type !== 'or') return [];
+    const o = wf.options.find((x) => x.type === 'card' && x.selectBlueCardAction);
+    return o ? o.cards.filter((c) => !c.isDisabled).map((c) => c.name) : [];
+  };
   T.endTurn = () => T.send(wrap((o) => o.type === 'option' && /end turn/i.test(t(o)), 'End Turn', {type: 'option'}));
   T.undo = () => T.send(wrap((o) => o.type === 'option' && /undo/i.test(t(o)), 'Undo', {type: 'option'}));
   T.heat = () => T.send(wrap((o) => o.type === 'option' && /heat/i.test(t(o)), 'Convert heat', {type: 'option'}));
@@ -659,6 +666,7 @@ Follow-ups (pending input is itself the prompt):
     let out;
     switch (cmd) {
       case 'batch': {
+        T.inBatch = true;
         // batch '[["play","X"],["space","58|20|62"],["or","0"]]' — one process, one connection.
         // "a|b|c" in the first arg = try alternatives until one succeeds. Stops at the first unrecoverable error.
         // A step may be ["if-pending","<regex>", ...cmd] to run only when the pending prompt matches,
@@ -928,7 +936,18 @@ ${fs.readFileSync(f, 'utf8')}` :
       case 'greenery': out = await T.greenery(a[0]); break;
       case 'trade': out = await T.trade(a[0], a[1]); break;
       case 'sell': out = await T.sell(a); break;
-      case 'pass': out = await T.pass(); break;
+      case 'pass': {
+        // Typed by hand (not from a batch or the autopilot, whose rules decide for themselves), a pass
+        // that would waste an available card action is refused once. A card bought and played and then
+        // never used was a real loss in the 2026-11-22 game (Ants, on the menu from gen 5 to gen 8).
+        const force = a.includes('--force');
+        if (!T.v) await T.state();
+        const unused = force || T.inBatch ? [] : T.unusedActions();
+        out = unused.length > 0 ?
+          `NOT PASSED: card actions still unused this generation: ${unused.join(', ')}.\nUse each one that is worth its cost (action "Card"), then pass. To pass anyway: pass --force` :
+          await T.pass();
+        break;
+      }
       case 'endturn': out = await T.endTurn(); break;
       case 'undo': out = await T.undo(); break;
       case 'menu': out = await T.menu(a[0], J(a[1])); break;
