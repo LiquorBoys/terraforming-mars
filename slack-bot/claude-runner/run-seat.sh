@@ -138,7 +138,7 @@ OVERLAY="Context for this session: you are playing one seat of a live Terraformi
 
 Environment: the skill's directory is $GAME/plugin/skills/terraforming-mars and is read-only; use that path wherever the skill text says ~/.claude/skills/terraforming-mars. TM_CACHE_DIR is set, so every cache/... path in the skill means $GAME/cache/.... Bash commands run in an OS sandbox: only $GAME is readable and writable, and only the game server is reachable over the network. There is no browser. The operator chose this session's model, so the skill's instruction to use Sonnet and to tell the user about it does not apply. scripts/cost.js cannot read session transcripts from inside the sandbox; skip it, the runner records cost.
 
-Lessons: the live copies are $GAME/lessons/lessons.md and $GAME/lessons/lessons-log.md. Read those instead of the copies under references/, and write this game's lessons to them; the runner publishes them after the game.
+Lessons: the live copies are $GAME/lessons/lessons.md and $GAME/lessons/lessons-log.md. Read those instead of the copies under references/, and write this game's lessons to them; the runner publishes them after the game. They are published publicly, so refer to the game by its name and date, never by a player or game id.
 
 Keep per-move narration to two or three lines; it goes to a log that is read after the game.
 
