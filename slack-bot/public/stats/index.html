@@ -29,7 +29,8 @@
   body.viz-root { background: var(--page); color: var(--text-primary); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   main { max-width: 1040px; margin: 0 auto; padding: 28px 20px 64px; }
   h1 { font-size: 22px; font-weight: 650; margin: 0 0 2px; }
-  h2 { font-size: 16px; font-weight: 650; margin: 0 0 2px; }
+  h2 { font-size: 16px; font-weight: 650; margin: 0 0 10px; }
+  h2:has(+ .sub) { margin-bottom: 2px; }
   .sub { color: var(--text-secondary); margin: 0 0 14px; }
   .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-top: 16px; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 16px; }

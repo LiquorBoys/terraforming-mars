@@ -1,7 +1,7 @@
 // Draws the league page. All numbers come from compute.js; this file only lays them out.
 // Names and game titles are other people's text, so they only ever reach the page through
 // textContent, never as HTML.
-import {computeLeague, START_RATING, THIN_PLAYS} from './compute.js';
+import {computeLeague, START_RATING} from './compute.js';
 
 const DATA_URL = 'https://raw.githubusercontent.com/LiquorBoys/tm-league/main/games.json';
 // ?data=some-file.json loads a file that sits next to this page instead (for previews).
@@ -81,7 +81,6 @@ function ratingsCard(league) {
     el('td', {}, sparkline(p))));
   return el('section', {class: 'card'},
     el('h2', {text: 'Ratings'}),
-    el('p', {class: 'sub', text: `Elo over every pair of players in each game. Everyone starts at ${START_RATING}; a game moves a rating by at most 32.`}),
     el('div', {class: 'scroll'}, el('table', {},
       el('thead', {}, el('tr', {}, ...[['#', 'num'], ['Player'], ['Rating', 'num'], ['Last game', 'num'], ['Games', 'num'], ['Wins', 'num'], ['History']].map(([t, c]) => el('th', {class: c, text: t})))),
       el('tbody', {}, rows))));
@@ -91,8 +90,7 @@ function ratingsCard(league) {
 function claudeChart(league) {
   const claudes = league.players.filter((p) => p.claudeModel === 'opus' || p.claudeModel === 'sonnet');
   const card = el('section', {class: 'card'},
-    el('h2', {text: 'Opus v Sonnet'}),
-    el('p', {class: 'sub', text: "Each game with Claude is given to one model, keeping the two models' game counts level. The table never knows which one it is playing."}));
+    el('h2', {text: 'Opus v Sonnet'}));
   if (claudes.length === 0) { card.append(el('p', {class: 'muted', text: 'Claude has not finished a recorded game yet.'})); return card; }
 
   const total = league.games.length;
@@ -168,7 +166,6 @@ function corporationsCard(league) {
   });
   return el('section', {class: 'card'},
     el('h2', {text: 'Corporations'}),
-    el('p', {class: 'sub', text: `How much better (right) or worse (left) people did with each corporation than their rating predicted, averaged over its plays and pulled toward zero when there are few. Under ${THIN_PLAYS} plays is greyed out: it is there for fun, not evidence.`}),
     el('div', {class: 'scroll'}, el('table', {},
       el('thead', {}, el('tr', {}, ...[['Corporation'], ['Plays', 'num'], ['Wins', 'num'], ['Avg finish', 'num'], ['Against expectation'], ['', 'num']].map(([t, c]) => el('th', {class: c, text: t})))),
       el('tbody', {}, rows))));
@@ -207,7 +204,7 @@ function sillyCards(league) {
     detail: [{value: `${fmt(p.secondsPerAction)} s`, label: 'per action'}, {value: `${fmt(p.clockMs / 60000)} min`, label: `on the clock over ${p.games} game${p.games === 1 ? '' : 's'}`}],
   }));
   return el('div', {class: 'lists'},
-    rankedList('Left in the warehouse', 'Steel and titanium still unspent when the game ended, at what it was worth to them, per game.', warehouse),
+    rankedList('Left in the warehouse', 'Steel and titanium still unspent when the last generation ended, at what it was worth to them, per game.', warehouse),
     rankedList('Philanthropist', 'Awards they paid to fund and then did not win.', givers),
     rankedList('On the clock', 'Seconds of their own clock per action taken.', clock));
 }
@@ -222,7 +219,6 @@ function gamesCard(league) {
       el('span', {text: `${p.rank}. ${p.displayName} ${p.vp}`}), ' ', el('span', {class: 'muted', text: `${(p.corps ?? []).join(' + ')} ${signed(Math.round(p.ratingDelta))}`}))]))));
   return el('section', {class: 'card'},
     el('h2', {text: 'Games'}),
-    el('p', {class: 'sub', text: 'Finish, victory points, corporation and rating change. The full log of every game is in the data repository.'}),
     el('div', {class: 'scroll'}, el('table', {},
       el('thead', {}, el('tr', {}, ...[['#', 'num'], ['Date'], ['Game'], ['Gens', 'num'], ['Result']].map(([t, c]) => el('th', {class: c, text: t})))),
       el('tbody', {}, rows))));

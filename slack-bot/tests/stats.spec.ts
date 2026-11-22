@@ -66,6 +66,12 @@ describe('ratings', () => {
 });
 
 describe('corporations', () => {
+  it('credits a game to every corporation the player had', async () => {
+    const {computeLeague} = await load();
+    const league = computeLeague([game(1, [p('a', 1, {corps: ['Valley Trust', 'Poseidon']}), p('b', 2, {corps: ['Splice']})])]);
+    expect(league.corporations.map((c) => [c.name, c.plays, c.wins]).sort()).toEqual([['Poseidon', 1, 1], ['Splice', 1, 0], ['Valley Trust', 1, 1]]);
+  });
+
   it('shrinks small samples toward zero and marks them thin', async () => {
     const {computeLeague, THIN_PLAYS, SHRINK} = await load();
     const league = computeLeague([game(1, [p('a', 1, {corps: ['Helion']}), p('b', 2, {corps: ['Ecoline']})])]);
@@ -88,6 +94,20 @@ describe('the silly ones', () => {
     const a = league.players.find((x) => x.key === 'a')!;
     expect(a.unspentMax).toBe(38);
     expect(a.unspentAvg).toBe(19);
+  });
+
+  it('takes the final production phase back off, since the record is read after it', async () => {
+    const {computeLeague} = await load();
+    const league = computeLeague([game(1, [
+      // 6 titanium, all of it from the last production: nothing was left unspent.
+      p('income', 1, {steel: 2, steelValue: 2, steelProduction: 2, titanium: 6, titaniumValue: 3, titaniumProduction: 6}),
+      // 3 titanium and 1 steel with no production: all of it was left unspent.
+      p('hoarder', 2, {steel: 1, steelValue: 2, steelProduction: 0, titanium: 3, titaniumValue: 3, titaniumProduction: 0}),
+      // Negative production never adds stock back.
+      p('negative', 3, {steel: 4, steelValue: 2, steelProduction: -1, titanium: 0, titaniumValue: 3, titaniumProduction: 0}),
+    ])]);
+    const of = (k: string) => league.players.find((x) => x.key === k)!.unspentMax;
+    expect([of('income'), of('hoarder'), of('negative')]).toEqual([0, 11, 8]);
   });
 
   it('counts an award as given away only when its funder is not level on the top score', async () => {

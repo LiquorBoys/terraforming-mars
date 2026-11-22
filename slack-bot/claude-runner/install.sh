@@ -17,7 +17,7 @@ as() { sudo -n -H -u "$ACCT" "$@"; }
 as /bin/mkdir -p "$DEST/runner"
 # Each file is written beside its target and renamed over it, so a supervisor that is in the
 # middle of a game keeps reading the copy it started with.
-for f in server.mjs sign.mjs notify.mjs league.mjs run-seat.sh start.sh; do
+for f in server.mjs sign.mjs notify.mjs league.mjs resummarize.mjs run-seat.sh start.sh; do
   as /usr/bin/tee "$DEST/runner/$f.new" < "$HERE/$f" > /dev/null
   as /bin/mv "$DEST/runner/$f.new" "$DEST/runner/$f"
 done

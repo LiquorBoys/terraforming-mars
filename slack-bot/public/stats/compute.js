@@ -70,7 +70,10 @@ export function computeLeague(games) {
       if (p.rank === 1) s.wins += 1;
       s.history.push({game: index + 1, gameId: g.id, date: g.createdAt, rating: s.rating, delta: r.delta});
 
-      const unspent = (p.steel ?? 0) * (p.steelValue ?? 2) + (p.titanium ?? 0) * (p.titaniumValue ?? 3);
+      // Stock left when the last generation ended. The record is taken after the final production
+      // phase, so one round of production is taken back off; that income was never theirs to spend.
+      const left = (stock, production) => Math.max(0, (stock ?? 0) - Math.max(0, production ?? 0));
+      const unspent = left(p.steel, p.steelProduction) * (p.steelValue ?? 2) + left(p.titanium, p.titaniumProduction) * (p.titaniumValue ?? 3);
       s.unspentTotal += unspent;
       if (unspent > s.unspentMax) { s.unspentMax = unspent; s.unspentMaxGame = g.name; }
       if (typeof p.clockMs === 'number' && p.actions > 0) { s.clockMs += p.clockMs; s.clockActions += p.actions; }

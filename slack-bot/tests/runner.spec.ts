@@ -145,6 +145,16 @@ describe('league records (claude-runner/league.mjs)', () => {
     expect(s.milestones).toEqual([{name: 'Mayor', claimedBy: 'blue'}]);
   });
 
+  it('finds a corporation merged in with the Merger prelude, and both in the two-corporation variant', async () => {
+    const path = '../claude-runner/league.mjs';
+    const {corporationsOf} = await import(/* @vite-ignore */ path) as {corporationsOf: (tableau: Array<{name: string}>, two: boolean) => Array<string>};
+    const t = (...names: Array<string>) => names.map((name) => ({name}));
+    expect(corporationsOf(t('Valley Trust', 'Metals Company', 'Merger', 'Poseidon', 'Smelting Plant'), false)).toEqual(['Valley Trust', 'Poseidon']);
+    expect(corporationsOf(t('Splice', 'Biosphere Support', 'Ants'), false)).toEqual(['Splice']);
+    expect(corporationsOf(t('Helion', 'Ecoline', 'Merger', 'Vitor'), true)).toEqual(['Helion', 'Ecoline', 'Vitor']);
+    expect(corporationsOf(t('Helion', 'Merger'), false)).toEqual(['Helion']);
+  });
+
   it('keeps player ids and Slack ids out of what gets published', async () => {
     const {buildSummary, buildFull, personKey} = await load();
     const full = JSON.stringify(buildFull(buildSummary(meta, spec, 'x'), spec, [[]]));

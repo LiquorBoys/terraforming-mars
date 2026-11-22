@@ -14,14 +14,26 @@ export function personKey(salt, slackUserId) {
 const VP_PARTS = ['terraformRating', 'milestones', 'awards', 'greenery', 'city', 'victoryPoints'];
 
 /**
+ * A player's corporations. The tableau lists cards in the order they were played and does not say
+ * which are corporations, so: the first one (two in the two-corporations variant), plus the card
+ * played straight after the Merger prelude, which is the corporation it merged in.
+ */
+export function corporationsOf(tableau, twoCorpsVariant) {
+  const names = tableau.slice(0, twoCorpsVariant ? 2 : 1).map((c) => c.name);
+  const merger = tableau.findIndex((c) => c.name === 'Merger');
+  if (merger >= 0 && tableau[merger + 1] && !names.includes(tableau[merger + 1].name)) names.push(tableau[merger + 1].name);
+  return names;
+}
+
+/**
  * One compact entry for games.json.
  * meta: {gameId, name, createdAt, seed, players: [{color, name, key}]} as stored when the game was created.
  * spec: the /api/spectator response of the finished game.
  */
 export function buildSummary(meta, spec, endedAt) {
   const g = spec.game;
-  const corps = g.gameOptions.twoCorpsVariant ? 2 : 1;
   const players = spec.players.map((p) => {
+    const corps = corporationsOf(p.tableau, g.gameOptions.twoCorpsVariant);
     const m = meta.players.find((x) => x.color === p.color) ?? {};
     const b = p.victoryPointsBreakdown;
     const parts = Object.fromEntries(VP_PARTS.map((k) => [k, b[k] ?? 0]));
@@ -30,16 +42,18 @@ export function buildSummary(meta, spec, endedAt) {
       name: m.name ?? p.name,
       color: p.color,
       ...(m.claudeModel ? {claudeModel: m.claudeModel} : {}),
-      corps: p.tableau.slice(0, corps).map((c) => c.name),
+      corps,
       vp: b.total,
       vpParts: {...parts, other: b.total - VP_PARTS.reduce((s, k) => s + (b[k] ?? 0), 0)},
       vpByGeneration: p.victoryPointsByGeneration,
       tr: p.terraformRating,
       megacredits: p.megacredits,
-      steel: p.steel, steelValue: p.steelValue,
-      titanium: p.titanium, titaniumValue: p.titaniumValue,
+      // The final state is read after the last production phase, so the stock a player actually
+      // left unspent is what is here minus one round of production.
+      steel: p.steel, steelValue: p.steelValue, steelProduction: p.steelProduction,
+      titanium: p.titanium, titaniumValue: p.titaniumValue, titaniumProduction: p.titaniumProduction,
       cardsInHand: p.cardsInHandNbr,
-      cardsPlayed: p.tableau.length - corps,
+      cardsPlayed: p.tableau.length - corps.length,
       actions: p.actionsTakenThisGame,
       clockMs: p.timer?.sumElapsed ?? null,
     };
