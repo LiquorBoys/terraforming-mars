@@ -215,7 +215,7 @@ function achievementsCard(league) {
       [el('span', {class: 'muted', text: 'Nobody yet'})] :
       a.holders.flatMap((h, i) => [i ? ', ' : '', withTip(el('span', {text: h.count > 1 ? `${h.name} ×${h.count}` : h.name}), a.name,
         [{value: `${h.count}`, label: h.count === 1 ? 'time' : 'times'}, {value: day(h.lastDate), label: `most recently, in ${h.lastGame}`}])]);
-    return el('tr', {class: a.holders.length === 0 ? 'thin' : undefined}, el('td', {class: 'nowrap', text: a.name}), el('td', {text: a.text}), el('td', {}, ...who));
+    return el('tr', {class: a.holders.length === 0 ? 'thin' : undefined}, el('td', {class: 'nowrap', text: a.name}), el('td', {text: a.text}), el('td', {class: 'who'}, ...who));
   });
   return el('section', {class: 'card'},
     el('h2', {text: 'Achievements'}),
